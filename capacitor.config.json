@@ -1,0 +1,10 @@
+{
+  "appId": "com.krishnaleelagrand.admin",
+  "appName": "KLG Delivery",
+  "webDir": "dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

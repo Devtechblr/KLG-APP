@@ -1,0 +1,11 @@
+node_modules
+dist
+.env.local
+.env
+*.apk
+firebase-debug.log
+coverage
+
+# Firebase Android config: download it again with
+#   firebase apps:sdkconfig ANDROID 1:289286383928:android:1267782b824ed2125479cd --project krishna-leela-grand -o android/app/google-services.json
+android/app/google-services.json
