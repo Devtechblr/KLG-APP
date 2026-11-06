@@ -25,7 +25,7 @@ async function signIn(identifier, password) {
 const click = (name) => fireEvent.click(screen.getByRole('button', { name }));
 const swipe = async (label) => fireEvent.keyDown(await screen.findByRole('button', { name: label }), { key: 'Enter' });
 const confirmDialog = async (confirmLabel) => {
-  const dlg = await screen.findByRole('alertdialog');
+  const dlg = (await screen.findAllByRole('alertdialog')).at(-1); // topmost
   fireEvent.click(within(dlg).getByRole('button', { name: confirmLabel }));
 };
 
@@ -49,7 +49,7 @@ describe('sign-in', () => {
     be.state.orders.push(makeOrder({ n: 1 }));
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
-    await screen.findByText('KLG-T1');
+    await screen.findAllByText('KLG-T1');
     be.state.tokens.clear(); // server revokes the token
     click('Accept Order');
     expect(await screen.findByRole('alert')).toHaveTextContent('Your session expired');
@@ -62,18 +62,23 @@ describe('full delivery: accept -> prepare -> parcel -> driver picks up -> deliv
     const be = installFakeBackend();
     be.state.orders.push(makeOrder({ n: 1001 }));
     const order = () => be.state.orders[0];
-    const asAdmin = async () => { localStorage.clear(); const v = renderApp(); await signIn('desk@klg.test', 'desk-pass'); await screen.findByText('KLG-T1001'); return v; };
-    const asDriver = async () => { localStorage.clear(); const v = renderApp(); await signIn('9000000001', 'ravi-pass'); await screen.findByText('Order #T1001'); return v; };
+    const asAdmin = async () => { localStorage.clear(); const v = renderApp(); await signIn('desk@klg.test', 'desk-pass'); await screen.findAllByText('KLG-T1001'); return v; };
+    const asDriver = async () => { localStorage.clear(); const v = renderApp(); await signIn('9000000001', 'ravi-pass'); await screen.findAllByText('Order #T1001'); return v; };
 
-    // 1. Delivery staff accept the new order -> Preparing
+    // 1. Delivery staff accept the new order -> Preparing. No driver is contacted yet.
     let view = await asAdmin();
     expect(screen.getByText(/auto-accepts in/)).toBeInTheDocument();
     click('Accept Order');
     await waitFor(() => expect(order().orderStatus).toBe('PREPARING'));
+    expect(screen.queryByRole('button', { name: 'Assign Driver' })).toBeNull();
+    expect(order().assignmentMode).not.toBe('AUTO');
 
-    // 2. Assign a driver while the food cooks (offline drivers can't be picked)
-    fireEvent.click(await screen.findByRole('button', { name: /^Assign$/ }));
-    expect(await screen.findByText('Assign Driver')).toBeInTheDocument();
+    // 2. Parcel ready -> the main button becomes Assign Driver (offline drivers can't be picked)
+    click('Parcel Ready');
+    await waitFor(() => expect(order().orderStatus).toBe('PACKING'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign Driver' }));
+    expect(await screen.findByRole('dialog', { name: 'Assign Driver' })).toBeInTheDocument();
+    expect(screen.getByText('All online drivers').closest('[role="radio"]')).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText('Sita Driver').closest('[role="radio"]')).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(screen.getByText('Ravi Driver').closest('[role="radio"]'));
     click('Assign to Ravi Driver');
@@ -81,30 +86,22 @@ describe('full delivery: accept -> prepare -> parcel -> driver picks up -> deliv
     expect(await screen.findByText('Waiting for driver to accept')).toBeInTheDocument();
     view.unmount();
 
-    // 3. Driver accepts; pick-up stays locked while food is being prepared
+    // 3. Driver gets the ringing "incoming delivery" screen and accepts
     view = await asDriver();
-    await swipe('Swipe to accept delivery');
+    const incoming = await screen.findByRole('alertdialog', { name: 'Order #T1001' });
+    expect(within(incoming).getByText('Delivery assigned to you')).toBeInTheDocument();
+    fireEvent.click(within(incoming).getByRole('button', { name: 'Accept' }));
     await waitFor(() => expect(order().riderAcceptedAt).not.toBeNull());
-    expect(await screen.findByText(/pick-up unlocks when the parcel is ready/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Swipe when picked up' })).toBeNull();
-    view.unmount();
+    await waitFor(() => expect(screen.queryByRole('alertdialog', { name: 'Order #T1001' })).toBeNull());
 
-    // 4. Restaurant packs the parcel
-    view = await asAdmin();
-    expect(screen.getByText('Driver accepted · waiting for the parcel')).toBeInTheDocument();
-    click('Parcel Ready');
-    await waitFor(() => expect(order().orderStatus).toBe('PACKING'));
-    view.unmount();
-
-    // 5. Driver picks up and delivers (COD -> confirm cash)
-    view = await asDriver();
+    // 4. Driver picks up and delivers (COD -> confirm cash)
     await swipe('Swipe when picked up');
     await waitFor(() => expect(order().orderStatus).toBe('OUT_FOR_DELIVERY'));
     await swipe('Swipe to mark delivered');
     await confirmDialog('Cash received');
     await waitFor(() => expect(order().orderStatus).toBe('DELIVERED'));
     expect(be.state.riders[0].status).toBe('AVAILABLE');
-    expect(order().statusHistory.map((h) => h.status)).toEqual(['PENDING', 'PREPARING', 'ACCEPTED', 'PACKING', 'OUT_FOR_DELIVERY', 'DELIVERED']);
+    expect(order().statusHistory.map((h) => h.status)).toEqual(['PENDING', 'PREPARING', 'PACKING', 'ACCEPTED', 'OUT_FOR_DELIVERY', 'DELIVERED']);
     fireEvent.click(screen.getByRole('link', { name: /History/ }));
     expect(await screen.findByText('Order #T1001')).toBeInTheDocument();
   });
@@ -126,7 +123,8 @@ describe('full delivery: accept -> prepare -> parcel -> driver picks up -> deliv
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
     fireEvent.click(await screen.findByRole('button', { name: 'Assign Driver' }));
-    expect(await screen.findByText(/For order/)).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Assign Driver' })).toBeInTheDocument();
+    expect(screen.getByText('Order', { exact: false, selector: '.sheet-sub' })).toHaveTextContent('KLG-T1003');
   });
 });
 
@@ -137,7 +135,7 @@ describe('auto offers', () => {
     const view = renderApp();
     await signIn('desk@klg.test', 'desk-pass');
     fireEvent.click(await screen.findByRole('button', { name: 'Assign Driver' }));
-    click(/Auto: offer to all online drivers/);
+    click('Send to all online drivers (1)');
     await waitFor(() => expect(be.state.orders[0]).toMatchObject({ assignmentMode: 'AUTO', offeredRiderIds: ['r1'] }));
     expect(await screen.findByText(/offered to 1 online driver/)).toBeInTheDocument();
 
@@ -145,11 +143,12 @@ describe('auto offers', () => {
     localStorage.clear();
     renderApp();
     await signIn('ravi@klg.test', 'ravi-pass');
-    expect(await screen.findByText('Offer')).toBeInTheDocument();
-    click('Decline offer');
+    const incoming = await screen.findByRole('alertdialog', { name: 'Order #T2002' });
+    expect(within(incoming).getByText('New delivery request')).toBeInTheDocument();
+    fireEvent.click(within(incoming).getByRole('button', { name: 'Decline' }));
     await confirmDialog('Decline');
     await waitFor(() => expect(be.state.orders[0].rejectedRiderIds).toEqual(['r1']));
-    expect(await screen.findByText('No deliveries right now')).toBeInTheDocument();
+    expect(await screen.findByText('Waiting for orders')).toBeInTheDocument();
   });
 });
 
@@ -185,5 +184,56 @@ describe('drivers management', () => {
     fireEvent.change(screen.getByPlaceholderText('KA-05-AB-1234'), { target: { value: 'ka03ef9999' } });
     click('Add driver');
     await waitFor(() => expect(be.state.riders.at(-1)).toMatchObject({ name: 'Kiran New', phone: '9000000009', password: 'kiran-pass', vehicleNumber: 'KA03EF9999' }));
+  });
+});
+
+describe('new order popup and auto-accept', () => {
+  it('pops up with Accept and Reject; Accept moves the order to Preparing', async () => {
+    const be = installFakeBackend();
+    be.state.orders.push(makeOrder({ n: 2001 }));
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    const dlg = await screen.findByRole('dialog', { name: 'New delivery order' });
+    expect(within(dlg).getByText(/Auto-accepts/)).toBeInTheDocument();
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Accept' }));
+    await waitFor(() => expect(be.state.orders[0].orderStatus).toBe('PREPARING'));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New delivery order' })).toBeNull());
+    // Drivers are only contacted later, from Assign Driver once the parcel is ready.
+    expect(be.state.orders[0].assignmentMode).not.toBe('AUTO');
+  });
+
+  it('Reject cancels the order after confirming', async () => {
+    const be = installFakeBackend();
+    be.state.orders.push(makeOrder({ n: 2002 }));
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    const dlg = await screen.findByRole('dialog', { name: 'New delivery order' });
+    fireEvent.click(within(dlg).getByRole('button', { name: 'Reject' }));
+    await confirmDialog('Reject Order');
+    await waitFor(() => expect(be.state.orders[0].orderStatus).toBe('CANCELLED'));
+  });
+
+  it('accepts by itself once the order has waited 60 seconds', async () => {
+    const be = installFakeBackend();
+    const at = new Date(Date.now() - 61_000).toISOString();
+    be.state.orders.push(makeOrder({ n: 2003, createdAt: at, pendingAt: at }));
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    await waitFor(() => expect(be.state.orders[0].orderStatus).toBe('PREPARING'), { timeout: 4000 });
+  });
+});
+
+describe('driver home', () => {
+  it('bell lists what the driver must do next; job card shows the 3 steps', async () => {
+    const be = installFakeBackend();
+    be.state.orders.push(makeOrder({ n: 4004, orderStatus: 'PACKING', riderId: 'r1', riderName: 'Ravi Driver', riderAcceptedAt: 'x' }));
+    renderApp();
+    await signIn('9000000001', 'ravi-pass');
+    expect(await screen.findByText("You're Online")).toBeInTheDocument();
+    expect(screen.getByText('Parcel is ready · go to the counter and pick it up')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Step 2 of 3' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications (1)' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Notifications' });
+    expect(within(sheet).getByText('Parcel ready · pick up now')).toBeInTheDocument();
   });
 });

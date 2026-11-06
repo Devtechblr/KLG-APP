@@ -37,29 +37,28 @@ export default function DriverActive() {
 
   return (
     <div className="page driver-home">
-      <section className="hero">
-        <div className="hero-top">
+      <section className={`hero ${me.online ? 'is-on' : 'is-off'}`}>
+        <div className="hero-who">
           <span className="hero-avatar">{initials(me.name)}</span>
-          <label className={`hero-toggle ${me.online ? 'on' : ''}`}>
-            <input type="checkbox" checked={!!me.online} disabled={me.busy} onChange={() => actions.toggleDriverOnline(me.id)} />
-            <span>{me.online ? 'Online' : 'Offline'}</span>
-            <i />
-          </label>
+          <span>
+            <p className="hero-greet">{greeting()}</p>
+            <h1 className="hero-name">Hello, {me.name.split(' ')[0]}!</h1>
+          </span>
         </div>
-        <p className="hero-greet">{greeting()},</p>
-        <h1 className="hero-name">Hello, {me.name.split(' ')[0]}!</h1>
+        <label className={`hero-status ${me.online ? 'on' : ''}`}>
+          <input type="checkbox" checked={!!me.online} disabled={me.busy} onChange={() => actions.toggleDriverOnline(me.id)} aria-label="Online" />
+          <span className="hero-status-text">
+            <b>{me.online ? "You're Online" : "You're Offline"}</b>
+            <small>{me.busy ? 'On a delivery · finish it to go offline' : me.online ? 'New orders will ring on this phone' : 'Turn on to start getting orders'}</small>
+          </span>
+          <i />
+        </label>
       </section>
 
-      <section className="card today-card">
-        <div className="today-main">
-          <span className="muted">Today's deliveries</span>
-          <strong>{inr(today.value)}</strong>
-        </div>
-        <div className="today-row">
-          <span>Completed: <b>{db.stats ? db.stats.todaysRides : today.count}</b></span>
-          <span>Distance: <b>{Number(db.stats ? db.stats.todaysKm : today.km).toFixed(1)} km</b></span>
-          <span>Cash: <b>{inr(today.cash)}</b></span>
-        </div>
+      <section className="today-tiles">
+        <div><span>Delivered today</span><strong>{db.stats ? db.stats.todaysRides : today.count}</strong></div>
+        <div><span>Distance</span><strong>{Number(db.stats ? db.stats.todaysKm : today.km).toFixed(1)}<small> km</small></strong></div>
+        <div><span>Cash in hand</span><strong>{inr(today.cash)}</strong></div>
       </section>
 
       <div className="row-head">
@@ -67,10 +66,8 @@ export default function DriverActive() {
         <button className="icon-btn sm" onClick={actions.refresh} aria-label="Refresh"><RefreshCw size={16} /></button>
       </div>
 
-      {!me.online && <div className="card driver-offline">You are offline. Turn on <b>Online</b> above to get new orders.</div>}
-
       {mine.length === 0 ? (
-        <EmptyState icon={Bike} title="No deliveries right now" text="Orders assigned or offered to you appear here. Keep the app open to get alerts." />
+        <EmptyState icon={Bike} title={me.online ? 'Waiting for orders' : 'You are offline'} text={me.online ? 'When the restaurant sends you a delivery, your phone rings and it shows up here.' : 'Turn on Online above to start getting deliveries.'} />
       ) : (
         <div className="card-grid">
           {mine.map((o) => <DriverDeliveryCard key={o.id} order={o} customer={customerById[o.customerId]} />)}

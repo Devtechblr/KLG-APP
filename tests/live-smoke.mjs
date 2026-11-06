@@ -3,7 +3,7 @@
 // Optional credentials (PowerShell):  $env:KLG_ADMIN_EMAIL="..."; $env:KLG_ADMIN_PASSWORD="..."
 //                                     $env:KLG_DRIVER_LOGIN="98xxxxxxxx"; $env:KLG_DRIVER_PASSWORD="..."
 // Without credentials it checks health, the login error path and the device-token endpoint.
-const BASE = (process.env.VITE_API_BASE_URL || 'https://us-central1-krishna-leela-grand.cloudfunctions.net/api').replace(/\/+$/, '');
+const BASE = (process.env.VITE_API_BASE_URL || 'https://us-central1-krishna-leela-grand.cloudfunctions.net/api/api').replace(/\/+$/, '');
 let failed = 0;
 let skipped = 0;
 

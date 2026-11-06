@@ -92,6 +92,16 @@ export function DataProvider({ children }) {
       refresh: async () => { setLoading(true); try { await load(true); toast('Updated'); } catch (e) { toast(e.message, 'danger'); } setLoading(false); },
       reset: async () => { await load(); },
       setStatus: (orderId, status, note) => run(() => a.setStatus(orderOf(orderId), status, note), `${orderId} → ${label(status)}`),
+      // 60 s without an answer: accept quietly (the server does the same; whichever is first wins).
+      autoAccept: async (orderId) => {
+        const o = orderOf(orderId);
+        if (!o || o.status !== 'PENDING') return false;
+        let ok = true;
+        try { await a.setStatus(o, 'PREPARING', 'Auto-accepted'); } catch { ok = false; }
+        try { await load(true); } catch { /* next poll */ }
+        if (ok) toast(`${orderId} auto-accepted`, 'info');
+        return ok;
+      },
       assignDriver: (orderId, driverId) => run(() => a.assignDriver(orderOf(orderId), driverId), `Assigned ${driverOf(driverId)?.name || 'driver'}`),
       autoAssign: (orderId) => run(() => a.autoAssign(orderOf(orderId)), 'Offered to all online drivers'),
       upsertDriver: (driver) => run(() => a.upsertDriver(driver), driver.id ? 'Driver updated' : 'Driver added'),
@@ -122,6 +132,7 @@ export function DataProvider({ children }) {
       } catch (e) { toast(e.message, 'danger'); }
       setLoading(false);
     },
+    autoAccept: async () => false,
     setStatus: (orderId, status, note = '') => commit((d) => {
       const o = d.orders.find((x) => x.id === orderId);
       if (!o) return;

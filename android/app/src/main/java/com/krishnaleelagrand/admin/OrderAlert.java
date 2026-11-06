@@ -31,7 +31,23 @@ public final class OrderAlert {
     private static final Handler handler = new Handler(Looper.getMainLooper());
     private static Runnable stopTask;
 
+    private static final long DEDUPE_MS = 10 * 60_000L;
+    private static final java.util.Map<String, Long> alerted = new java.util.HashMap<>();
+
     private OrderAlert() {}
+
+    /**
+     * True the first time an order is alerted (within 10 min). The FCM push and
+     * the app's own poll can both see the same new order; only the first rings.
+     */
+    static synchronized boolean firstAlertFor(String orderKey) {
+        if (orderKey == null) return true;
+        long now = System.currentTimeMillis();
+        alerted.values().removeIf(t -> now - t > DEDUPE_MS);
+        if (alerted.containsKey(orderKey)) return false;
+        alerted.put(orderKey, now);
+        return true;
+    }
 
     static void ensureChannel(Context ctx) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
@@ -57,7 +73,9 @@ public final class OrderAlert {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_ALARM)
                 .setAutoCancel(true)
-                .setContentIntent(pi);
+                .setContentIntent(pi)
+                // Like an incoming call: lights the screen / opens the app on a locked phone.
+                .setFullScreenIntent(pi, true);
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         try {
             nm.notify((int) (System.currentTimeMillis() & 0x7fffffff), b.build());

@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Bike, History, UserCircle2, FlaskConical } from 'lucide-react';
 import Toasts from '../mobile/Toasts';
 import ConfirmDialog from '../mobile/ConfirmDialog';
 import LoadingSkeleton from '../mobile/LoadingSkeleton';
+import DriverOfferAlert from '../mobile/DriverOfferAlert';
+import DriverHeader from '../mobile/DriverHeader';
+import { startLiveLocation, stopLiveLocation } from '../../services/native/location';
 import { useData } from '../../context/DataContext';
 import { useSession } from '../../context/SessionContext';
 import { USE_MOCK_DATA } from '../../config';
@@ -22,6 +25,7 @@ export default function DriverLayout() {
   const { session, logout } = useSession();
   const { pathname } = useLocation();
   const me = driverById?.[session.driverId];
+  const onOrderPage = pathname.startsWith('/driver/order');
 
   useEffect(() => { window.scrollTo({ top: 0 }); }, [pathname]);
 
@@ -31,18 +35,34 @@ export default function DriverLayout() {
     [db, session.driverId]
   );
   const lastSent = useRef(0);
+  const [sharing, setSharing] = useState(null); // null | 'native' | 'web' | 'denied'
   useEffect(() => {
-    if (USE_MOCK_DATA || !outOrderId || !navigator.geolocation) return undefined;
-    const watch = navigator.geolocation.watchPosition(
-      (pos) => {
-        if (Date.now() - lastSent.current < 20000) return;
-        lastSent.current = Date.now();
-        actions.sendLocation?.(outOrderId, pos.coords);
-      },
-      () => { /* permission denied or no fix: delivery still works without tracking */ },
-      { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
-    );
-    return () => navigator.geolocation.clearWatch(watch);
+    if (USE_MOCK_DATA || !outOrderId) { setSharing(null); return undefined; }
+    let cancelled = false;
+    let watch = null;
+    // Android: native foreground service keeps sending GPS with the screen off.
+    startLiveLocation(outOrderId).then((res) => {
+      if (cancelled) return;
+      if (res.tracking) { setSharing('native'); return; }
+      if (res.reason === 'permission') { setSharing('denied'); return; }
+      if (!navigator.geolocation) { setSharing(null); return; }
+      // Browser fallback: only while the app is open.
+      watch = navigator.geolocation.watchPosition(
+        (pos) => {
+          setSharing('web');
+          if (Date.now() - lastSent.current < 15000) return;
+          lastSent.current = Date.now();
+          actions.sendLocation?.(outOrderId, pos.coords);
+        },
+        () => setSharing('denied'),
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }
+      );
+    });
+    return () => {
+      cancelled = true;
+      if (watch != null) navigator.geolocation.clearWatch(watch);
+      stopLiveLocation();
+    };
   }, [outOrderId, actions]);
 
   const activeCount = useMemo(
@@ -64,11 +84,12 @@ export default function DriverLayout() {
   }
 
   return (
-    <div className="app driver-app">
+    <div className={`app driver-app ${onOrderPage ? 'on-order' : ''}`}>
+      {me && !onOrderPage && <DriverHeader me={me} />}
       <main className="main">
         {error ? <div className="card error-card"><b>Could not load data.</b><p>{error}</p></div>
           : loading || !me ? <LoadingSkeleton rows={3} />
-          : <Outlet context={{ me }} />}
+          : <Outlet context={{ me, sharing }} />}
         {USE_MOCK_DATA && (
           <div className="demo-banner demo-foot"><FlaskConical size={14} /> Demo mode · sample data only</div>
         )}
@@ -88,6 +109,7 @@ export default function DriverLayout() {
           );
         })}
       </nav>
+      {me && <DriverOfferAlert meId={me.id} />}
       <Toasts />
       <ConfirmDialog />
     </div>

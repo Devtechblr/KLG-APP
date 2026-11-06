@@ -53,8 +53,15 @@ export function toCustomer(o) {
   };
 }
 
+// Who moved the order out of PENDING, and when ('SYSTEM' = the backend's 60 s auto-accept).
+function acceptance(o) {
+  const h = (o.statusHistory || []).find((x) => ['ACCEPTED', 'PREPARING'].includes(String(x.status || '').toUpperCase()));
+  return { acceptedAt: h?.updatedAt || o.preparingAt || null, acceptedBy: h?.updatedBy || null };
+}
+
 export function toOrder(o, { meId } = {}) {
   const riderId = idOf(o.riderId);
+  const { acceptedAt, acceptedBy } = acceptance(o);
   const isOffer = !!meId && !riderId && o.assignmentMode === 'AUTO';
   return {
     id: o.orderId,
@@ -83,6 +90,8 @@ export function toOrder(o, { meId } = {}) {
     offer: isOffer,
     offeredCount: (o.offeredRiderIds || []).length,
     pendingAt: o.pendingAt || null,
+    acceptedAt,
+    autoAccepted: acceptedBy === 'SYSTEM',
     distanceKm: o.deliveryDistanceKm != null ? num(o.deliveryDistanceKm) : null,
     notes: o.deliveryDetails?.specialInstructions || o.notes || '',
     tokenNumber: o.tokenNumber || null,

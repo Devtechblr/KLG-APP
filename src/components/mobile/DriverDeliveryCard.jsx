@@ -1,5 +1,5 @@
-import { useNavigate } from 'react-router-dom';
-import { MapPin, Phone, Navigation, ChefHat, Clock, ChevronRight } from 'lucide-react';
+import { useNavigate, useOutletContext } from 'react-router-dom';
+import { MapPin, Phone, Navigation, ChefHat, Clock, ChevronRight, Check, LocateFixed } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import SwipeButton from './SwipeButton';
 import { fmtDateTime, fmtTime, inr, mapsHref, telHref } from '../../utils/format';
@@ -62,6 +62,41 @@ export const driverWaitText = (order) => (KITCHEN.includes(order.status)
   ? 'Food is being prepared · pick-up unlocks when the parcel is ready'
   : 'Ready, waiting for hand-over');
 
+// 3 steps the driver sees on every active job.
+const JOB_STEPS = ['Accept', 'Pick up', 'Deliver'];
+export function jobStep(order) {
+  if (order.status === 'DELIVERED') return 3;
+  if (['OUT_FOR_DELIVERY', 'PICKED_UP'].includes(order.status)) return 2;
+  if (order.riderAccepted || order.status === 'ASSIGNED') return 1;
+  return 0;
+}
+export function nextHint(order) {
+  const n = jobStep(order);
+  if (n === 0) return 'Accept this delivery';
+  if (n === 1) return ['PACKING', 'READY', 'ASSIGNED'].includes(order.status) ? 'Parcel is ready · go to the counter and pick it up' : 'Food is being prepared · wait for the parcel';
+  return needsCash(order) ? `Deliver and collect ${inr(order.total)} cash` : 'Deliver to the customer';
+}
+
+export function JobSteps({ order }) {
+  const n = jobStep(order);
+  return (
+    <ol className="job-steps" aria-label={`Step ${Math.min(n + 1, 3)} of 3`}>
+      {JOB_STEPS.map((label, i) => (
+        <li key={label} className={i < n ? 'done' : i === n ? 'now' : ''}>
+          <span>{i < n ? <Check size={12} /> : i + 1}</span>{label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function LiveLocationPill({ sharing }) {
+  if (!sharing) return null;
+  return sharing === 'denied'
+    ? <p className="live-pill off"><LocateFixed size={14} /> Location is off · allow location so the customer can track you</p>
+    : <p className="live-pill"><span className="live-dot" /> Live location shared with customer</p>;
+}
+
 export default function DriverDeliveryCard({ order, customer, done = false }) {
   const navigate = useNavigate();
   const advance = useDriverAdvance();
@@ -69,6 +104,7 @@ export default function DriverDeliveryCard({ order, customer, done = false }) {
   const step = driverStep(order);
   const finishedAt = done ? [...order.timeline].reverse().find((t) => t.status === order.status)?.at : null;
   const open = () => navigate(`/driver/order/${order.id}`);
+  const { sharing } = useOutletContext() || {};
 
   return (
     <article className={`card jcard ${done ? 'is-done' : ''}`}>
@@ -96,6 +132,9 @@ export default function DriverDeliveryCard({ order, customer, done = false }) {
 
       {!done && (
         <>
+          <JobSteps order={order} />
+          <p className="job-next">{nextHint(order)}</p>
+          {order.status === 'OUT_FOR_DELIVERY' && <LiveLocationPill sharing={sharing} />}
           <div className="jc-quick">
             <a className="qa" href={telHref(customer?.phone)}><span className="qa-ic green"><Phone size={20} /></span>Call</a>
             <a className="qa" href={mapsHref(customer?.address)} target="_blank" rel="noreferrer"><span className="qa-ic purple"><Navigation size={20} /></span>Navigate</a>

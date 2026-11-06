@@ -41,9 +41,9 @@ export async function stopRing() {
   if (native()) { try { await KlgNative.stopRing(); } catch { /* ignore */ } }
 }
 
-export async function alertUser({ title, body, ring = true }) {
+export async function alertUser({ title, body, ring = true, key }) {
   if (native()) {
-    try { await KlgNative.notify({ title, body, ring }); } catch { /* ignore */ }
+    try { await KlgNative.notify({ title, body, ring, key }); } catch { /* ignore */ }
     return;
   }
   try {
@@ -84,13 +84,13 @@ export function notifyNewWork(prev, next, session) {
     return;
   }
 
-  // Admin: FCM handles this on phones with push enabled; otherwise alert in-app.
-  if (adminPushOn) return;
-  const fresh = next.orders.filter((o) => !before.has(o.id) && o.status === 'PENDING');
-  if (fresh.length) {
-    alertUser({
-      title: fresh.length > 1 ? `${fresh.length} new delivery orders` : 'New delivery order',
-      body: fresh.map((o) => `${o.id} · ₹${Math.round(o.total)}`).join('\n'),
-    });
-  }
+  // Admin: ring as soon as the poll sees a new order. The FCM push may also
+  // arrive (or arrive late); the native side rings only once per order id.
+  next.orders
+    .filter((o) => o.status === 'PENDING' && (!before.has(o.id) || before.get(o.id).status !== 'PENDING'))
+    .forEach((o) => alertUser({
+      key: o.id,
+      title: 'New Delivery Order',
+      body: `Order ${o.id} · ₹${Math.round(o.total)} · open to accept or reject`,
+    }));
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Clock, MapPin, Phone, Printer, User, Bike, ChevronDown, Navigation, UserPlus, Repeat, Eye, IndianRupee } from 'lucide-react';
+import { Clock, Phone, Printer, User, Bike, ChevronDown, Navigation, Repeat, Eye, IndianRupee } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import { fmtTime, inr, inr2, mapsHref, telHref } from '../../utils/format';
 import { NEXT_STEP, canAssign, canCancel, needsDriverFor, driverHandoff, autoAcceptCountdown } from '../../utils/status';
@@ -43,7 +43,6 @@ export default function DeliveryCard({ order, customer, driver, onView, onAssign
         <div className="dc-person">
           <span className="dc-label">Deliver to</span>
           <strong><User size={14} /> {customer?.name}</strong>
-          <a className="dc-phone" href={telHref(customer?.phone)}><Phone size={13} /> {customer?.phone}</a>
         </div>
         <div className="dc-quick">
           <a className="round-btn green" href={telHref(customer?.phone)} aria-label={`Call ${customer?.name}`}><Phone size={18} /></a>
@@ -51,9 +50,6 @@ export default function DeliveryCard({ order, customer, driver, onView, onAssign
         </div>
       </section>
 
-      <a className="dc-address" href={mapsHref(customer?.address)} target="_blank" rel="noreferrer">
-        <MapPin size={15} /> <span>{customer?.address}</span>
-      </a>
 
       <button className="dc-items-toggle" onClick={() => setShowItems((v) => !v)} aria-expanded={showItems}>
         <span><b>{itemCount}</b> item{itemCount > 1 ? 's' : ''} · {order.items.map((i) => i.name).slice(0, 2).join(', ')}{order.items.length > 2 ? '…' : ''}</span>
@@ -74,25 +70,19 @@ export default function DeliveryCard({ order, customer, driver, onView, onAssign
         <strong>{inr(order.total, 2)}</strong>
       </div>
 
-      <div className={`dc-driver ${driver ? '' : 'empty'} ${needsDriver ? 'attn' : ''}`}>
-        <Bike size={16} />
-        {driver ? (
-          <>
-            <span className="grow"><strong>{driver.name}</strong><small className={handoff ? `tone-text-${handoff.tone}` : ''}>{handoff?.text || driver.vehicleNo}</small></span>
-            <a className="icon-btn sm" href={telHref(driver.phone)} aria-label={`Call driver ${driver.name}`}><Phone size={15} /></a>
-            {canAssign(order.status) && (
-              <button className="btn btn-ghost btn-sm" onClick={onAssign}><Repeat size={14} /> Reassign</button>
-            )}
-          </>
-        ) : (
-          <>
-            <span className={`grow ${handoff ? `tone-text-${handoff.tone}` : ''}`}>{order.status === 'CANCELLED' ? 'No driver' : order.status === 'PENDING' ? 'Accept the order to assign a driver' : handoff?.text || 'No driver assigned'}</span>
-            {canAssign(order.status) && (
-              <button className="btn btn-soft btn-sm" onClick={onAssign}><UserPlus size={14} /> Assign</button>
-            )}
-          </>
-        )}
-      </div>
+      {(driver || handoff) && (
+        <div className={`dc-driver ${driver ? '' : 'empty'}`}>
+          <Bike size={16} />
+          <span className="grow">
+            {driver && <strong>{driver.name}</strong>}
+            <small className={handoff ? `tone-text-${handoff.tone}` : ''}>{handoff?.text || driver?.vehicleNo}</small>
+          </span>
+          {driver?.phone && <a className="icon-btn sm" href={telHref(driver.phone)} aria-label={`Call driver ${driver.name}`}><Phone size={15} /></a>}
+          {canAssign(order.status) && driver && (
+            <button className="btn btn-ghost btn-sm" onClick={onAssign}><Repeat size={14} /> Change</button>
+          )}
+        </div>
+      )}
 
       <footer className="dc-actions">
         <button className="btn btn-ghost" onClick={onView}><Eye size={16} /> Details</button>

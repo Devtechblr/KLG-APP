@@ -74,7 +74,6 @@ export default function Deliveries() {
     <div className="page">
       <PageHeader
         title="Delivery Orders"
-        subtitle="Manage home delivery orders and track the delivery lifecycle"
         actions={
           <button className="btn btn-primary btn-sm" onClick={refresh} disabled={spinning} aria-label="Refresh deliveries">
             <RefreshCw size={16} className={spinning ? 'spin' : ''} /> <span className="hide-xs">Refresh</span>
@@ -89,13 +88,6 @@ export default function Deliveries() {
             <span className="filter-text">{statusLabel}</span>
           </button>
         </SearchBar>
-        <div className="chips scroll-x">
-          {['ALL', 'ACTIVE', 'PENDING', 'PREPARING', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map((k) => (
-            <button key={k} className={`chip ${status === k ? 'is-active' : ''}`} onClick={() => setStatus(k)}>
-              {k === 'ALL' ? 'All' : k === 'ACTIVE' ? 'Active' : STATUS[k].label} <em>{counts[k] || 0}</em>
-            </button>
-          ))}
-        </div>
       </div>
 
       {loading ? (

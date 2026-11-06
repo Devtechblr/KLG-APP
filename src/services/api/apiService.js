@@ -94,9 +94,9 @@ export const apiService = {
     let busy = false;
     const tick = async () => {
       const s = session();
-      // Drivers keep polling in the background so new assignments still alert;
-      // admins get FCM pushes instead, so their app rests when hidden.
-      if (stopped || busy || !s?.token || (document.visibilityState === 'hidden' && s.role !== 'driver')) return;
+      // Keeps polling while the app is in the background, so a new order rings
+      // within one poll even if the server's push is late or missing.
+      if (stopped || busy || !s?.token) return;
       busy = true;
       try { onChange(await apiService.loadAll()); } catch (e) { onError?.(e); } finally { busy = false; }
     };

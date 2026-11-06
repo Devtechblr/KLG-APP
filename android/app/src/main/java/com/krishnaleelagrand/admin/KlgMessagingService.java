@@ -29,6 +29,7 @@ public class KlgMessagingService extends FirebaseMessagingService {
         String type = data.get("type");
         String orderId = data.get("orderId");
         if ("NEW_ORDER".equals(type)) {
+            if (orderId != null && !OrderAlert.firstAlertFor(orderId)) return; // app already rang for it
             String title = data.containsKey("title") ? data.get("title") : "New delivery order";
             String body = data.containsKey("body") ? data.get("body") : (orderId != null ? "Order " + orderId : "");
             OrderAlert.startRing(getApplicationContext(), orderId);

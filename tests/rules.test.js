@@ -161,6 +161,30 @@ describe('alerts (driver polling diff)', () => {
     const shown = [];
     vi.stubGlobal('Notification', Object.assign(function N(title) { shown.push(title); }, { permission: 'granted' }));
     notifyNewWork(buildDb({}), buildDb({ orders: [makeOrder({ n: 8 })] }), { role: 'admin' });
-    expect(shown).toEqual(['New delivery order']);
+    expect(shown).toEqual(['New Delivery Order']);
+  });
+});
+
+describe('thermal receipt (ESC/POS)', () => {
+  it('lays out a 58 mm delivery receipt with address, items and totals', async () => {
+    const { receiptLines, receiptBytes, LAYOUTS } = await import('../src/utils/escpos');
+    const db = buildDb({ orders: [makeOrder({ n: 9, deliveryDetails: { fullName: 'Asha Rao', phoneNumber: '9876500001', address: '12 MG Road', city: 'Bengaluru', specialInstructions: 'No onion' } })] });
+    const order = db.orders[0];
+    const lines = receiptLines(order, db.customers[0], { paperWidth: 58 }).map((l) => l.text);
+    expect(lines.every((t) => t.length <= LAYOUTS[58].lineWidth)).toBe(true);
+    expect(lines).toContain('Customer: Asha Rao');
+    expect(lines.some((t) => t.startsWith('Address: 12 MG Road'))).toBe(true);
+    expect(lines).toContain('Note: No onion');
+    expect(lines.some((t) => /^2\s+Masala Dosa\s+90\.00\s+180\.00$/.test(t))).toBe(true);
+    expect(lines.some((t) => /^GRAND TOTAL\s+229\.00$/.test(t))).toBe(true);
+    expect(lines.some((t) => t.includes('COLLECT CASH'))).toBe(true);
+    const bytes = receiptBytes(order, db.customers[0], { paperWidth: 80 });
+    expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]); // init
+    expect(bytes.slice(-3)).toEqual([0x1d, 0x56, 0x00]); // cut
+  });
+
+  it('knows which orders the server auto-accepted', () => {
+    const o = buildDb({ orders: [makeOrder({ n: 10, orderStatus: 'PREPARING', statusHistory: [{ status: 'PENDING', updatedAt: '2026-11-05T10:00:00Z' }, { status: 'PREPARING', updatedAt: '2026-11-05T10:01:00Z', updatedBy: 'SYSTEM' }] })] }).orders[0];
+    expect(o).toMatchObject({ autoAccepted: true, acceptedAt: '2026-11-05T10:01:00Z' });
   });
 });

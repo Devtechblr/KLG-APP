@@ -1,11 +1,69 @@
 import { useEffect, useState } from 'react';
-import { Store, UserCircle2, Bell, Users, Cog, ChevronDown, RotateCcw, FlaskConical, BellRing } from 'lucide-react';
+import { Store, UserCircle2, Bell, Users, Cog, ChevronDown, RotateCcw, FlaskConical, BellRing, Printer, Bluetooth, Check } from 'lucide-react';
 import PageHeader from '../components/mobile/PageHeader';
 import LoadingSkeleton from '../components/mobile/LoadingSkeleton';
 import { useData, useUi } from '../context/DataContext';
 import { API_BASE_URL, POLL_MS, USE_MOCK_DATA } from '../config';
 import { useSession } from '../context/SessionContext';
 import { alertUser, enableAdminPush, pushStatus } from '../services/native/notifications';
+import { canUseBluetooth, getPrinter, listPrinters, setPrinter, testPrint } from '../services/native/printer';
+
+function PrinterSettings() {
+  const { toast } = useUi();
+  const [printer, setP] = useState(getPrinter);
+  const [devices, setDevices] = useState(null);
+  const [busy, setBusy] = useState('');
+
+  const save = (p) => { setPrinter(p); setP(p); };
+  const scan = async () => {
+    setBusy('scan');
+    try {
+      const list = await listPrinters();
+      setDevices(list);
+      if (!list.length) toast('No paired Bluetooth devices. Pair the printer in Android Bluetooth settings first.', 'warning');
+    } catch (e) { toast(e.message || 'Could not read Bluetooth devices', 'danger'); }
+    setBusy('');
+  };
+  const choose = (d) => { save({ address: d.address, name: d.name, autoPrint: printer?.autoPrint ?? true }); toast(`Printer set: ${d.name}`); };
+  const test = async () => {
+    setBusy('test');
+    try { await testPrint(printer); toast('Test receipt sent to the printer'); } catch (e) { toast(e.message || 'Print failed', 'danger'); }
+    setBusy('');
+  };
+
+  if (!canUseBluetooth()) {
+    return <p className="muted small">Bluetooth printers work in the Android app. In the browser, the printer icon opens the print dialog.</p>;
+  }
+  return (
+    <>
+      <div className="kv"><span>Printer</span><b>{printer?.name || 'Not set'}</b></div>
+      <p className="muted small">Turn the printer on and pair it once in Android Settings → Bluetooth, then pick it here.</p>
+      <button className="btn btn-ghost btn-block mt" onClick={scan} disabled={!!busy}><Bluetooth size={16} /> {busy === 'scan' ? 'Looking…' : printer ? 'Change printer' : 'Choose printer'}</button>
+      {devices && (
+        <ul className="printer-list">
+          {devices.map((d) => (
+            <li key={d.address}>
+              <button className={printer?.address === d.address ? 'is-on' : ''} onClick={() => choose(d)}>
+                <span><strong>{d.name}</strong><small className="muted">{d.address}</small></span>
+                {printer?.address === d.address && <Check size={18} />}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {printer && (
+        <>
+          <label className="switch row mt">
+            <input type="checkbox" checked={printer.autoPrint !== false} onChange={(e) => { save({ ...printer, autoPrint: e.target.checked }); toast(e.target.checked ? 'Receipts print automatically when an order is accepted' : 'Auto-print off', 'info'); }} />
+            <span className="switch-track" /><span className="switch-text">Auto-print when an order is accepted</span>
+          </label>
+          <button className="btn btn-primary btn-block mt" onClick={test} disabled={!!busy}><Printer size={16} /> {busy === 'test' ? 'Printing…' : 'Print test receipt'}</button>
+          <button className="link-danger mt" onClick={() => { save(null); setDevices(null); toast('Printer removed', 'info'); }}>Remove printer</button>
+        </>
+      )}
+    </>
+  );
+}
 
 function LiveSettings() {
   const { session } = useSession();
@@ -44,6 +102,10 @@ function LiveSettings() {
         <button className="btn btn-ghost btn-block mt" onClick={() => alertUser({ title: 'Test alert', body: 'KLG Delivery alerts are working.', ring: true })}>
           Send a test alert
         </button>
+      </Section>
+
+      <Section icon={Printer} title="Printer" desc="Bluetooth receipt printer" defaultOpen>
+        <PrinterSettings />
       </Section>
 
       <Section icon={Cog} title="Application" desc="Connection details">

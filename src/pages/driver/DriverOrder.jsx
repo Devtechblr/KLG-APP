@@ -3,7 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom';
 import { ArrowLeft, Check, MapPin, Navigation, Phone, Store, X, ChefHat } from 'lucide-react';
 import SwipeButton from '../../components/mobile/SwipeButton';
 import EmptyState from '../../components/mobile/EmptyState';
-import { driverStep, driverWaitText, needsCash, shortId, useDriverAdvance, useDriverDecline } from '../../components/mobile/DriverDeliveryCard';
+import { driverStep, driverWaitText, needsCash, shortId, useDriverAdvance, useDriverDecline, JobSteps, nextHint, LiveLocationPill } from '../../components/mobile/DriverDeliveryCard';
 import { useData } from '../../context/DataContext';
 import { stopRing } from '../../services/native/notifications';
 import { fmtTime, inr, inr2, mapsHref, telHref } from '../../utils/format';
@@ -20,7 +20,7 @@ const RANK = { PENDING: 0, ACCEPTED: 0, PREPARING: 0, PACKING: 1, READY: 1, ASSI
 
 export default function DriverOrder() {
   const { id } = useParams();
-  const { me } = useOutletContext();
+  const { me, sharing } = useOutletContext();
   const navigate = useNavigate();
   const { db, customerById, actions } = useData();
   const advance = useDriverAdvance();
@@ -54,6 +54,14 @@ export default function DriverOrder() {
         <h1>Details · {shortId(order.id)}</h1>
         <a className="bar-btn" href={telHref(customer?.phone)} aria-label="Call customer"><Phone size={18} /></a>
       </header>
+
+      {!['DELIVERED', 'CANCELLED'].includes(order.status) && (
+        <section className="card section">
+          <JobSteps order={order} />
+          <p className="job-next">{nextHint(order)}</p>
+          {order.status === 'OUT_FOR_DELIVERY' && <LiveLocationPill sharing={sharing} />}
+        </section>
+      )}
 
       <section className="card map-card">
         <span className="map-chip"><Store size={13} /> Krishna Leela Grand</span>

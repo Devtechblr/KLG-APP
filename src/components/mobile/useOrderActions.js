@@ -1,6 +1,6 @@
 import { useData, useUi } from '../../context/DataContext';
 import { NEXT_STEP, STATUS, orderDriver } from '../../utils/status';
-import { printReceipt } from '../../utils/receipt';
+import { printOrder } from '../../services/native/printer';
 
 export default function useOrderActions() {
   const { actions, customerById, driverById } = useData();
@@ -36,9 +36,13 @@ export default function useOrderActions() {
       });
       if (ok) actions.setStatus(order.id, 'CANCELLED', 'Cancelled by restaurant');
     },
-    print: (order) => {
-      printReceipt(order, customerById[order.customerId], orderDriver(order, driverById));
-      toast('Opening print dialog', 'info');
+    print: async (order) => {
+      try {
+        const how = await printOrder(order, customerById[order.customerId], orderDriver(order, driverById));
+        toast(how === 'bluetooth' ? `Receipt printed · ${order.id}` : 'Opening print dialog', how === 'bluetooth' ? 'success' : 'info');
+      } catch (e) {
+        toast(`Print failed: ${e.message || e}`, 'danger');
+      }
     },
   };
 }

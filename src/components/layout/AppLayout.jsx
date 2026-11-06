@@ -7,6 +7,8 @@ import MobileDrawer from '../mobile/MobileDrawer';
 import BrandMark from '../mobile/BrandMark';
 import Toasts from '../mobile/Toasts';
 import ConfirmDialog from '../mobile/ConfirmDialog';
+import NewOrderAlert from '../mobile/NewOrderAlert';
+import useOrderAutomation from '../mobile/useOrderAutomation';
 import { DESKTOP_NAV } from './nav';
 import { useData, useUi } from '../../context/DataContext';
 import { ACTIVE_STATUSES } from '../../utils/status';
@@ -20,6 +22,7 @@ export default function AppLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { logout: endSession } = useSession();
+  useOrderAutomation();
 
   useEffect(() => { window.scrollTo({ top: 0 }); setMoreOpen(false); }, [pathname]);
 
@@ -69,6 +72,7 @@ export default function AppLayout() {
 
       <MobileBottomNavigation onMore={() => setMoreOpen((v) => !v)} moreOpen={moreOpen} badges={badges} />
       <MobileDrawer open={moreOpen} onClose={() => setMoreOpen(false)} />
+      <NewOrderAlert />
       <Toasts />
       <ConfirmDialog />
     </div>
