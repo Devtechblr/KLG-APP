@@ -1,9 +1,17 @@
 package com.krishnaleelagrand.admin;
 
 import android.Manifest;
+import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.net.Uri;
 import android.os.Build;
+import android.os.PowerManager;
+import android.provider.Settings;
 import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.core.content.ContextCompat;
 import android.util.Base64;
 import com.getcapacitor.JSArray;
@@ -46,6 +54,7 @@ public class KlgNativePlugin extends Plugin {
     @PluginMethod
     public void enablePush(PluginCall call) {
         String endpoint = call.getString("endpoint");
+        String auth = call.getString("authToken"); // driver login; null for admin phones
         askNotificationPermission();
         if (!firebaseReady()) {
             JSObject r = new JSObject();
@@ -54,7 +63,7 @@ public class KlgNativePlugin extends Plugin {
             call.resolve(r);
             return;
         }
-        PushPrefs.set(getContext(), true, endpoint);
+        PushPrefs.set(getContext(), true, endpoint, auth);
         FirebaseMessaging.getInstance().getToken().addOnCompleteListener(task -> {
             if (!task.isSuccessful() || task.getResult() == null) {
                 JSObject r = new JSObject();
@@ -65,7 +74,7 @@ public class KlgNativePlugin extends Plugin {
             }
             String token = task.getResult();
             new Thread(() -> {
-                int code = PushPrefs.register(endpoint, token);
+                int code = PushPrefs.register(endpoint, token, auth);
                 JSObject r = new JSObject();
                 r.put("enabled", code >= 200 && code < 300);
                 if (code < 200 || code >= 300) r.put("reason", "Server did not accept the device (HTTP " + code + ")");
@@ -76,8 +85,8 @@ public class KlgNativePlugin extends Plugin {
 
     @PluginMethod
     public void disablePush(PluginCall call) {
-        PushPrefs.set(getContext(), false, null);
-        OrderAlert.stopRing(null);
+        PushPrefs.set(getContext(), false, null, null);
+        OrderAlert.stopRing(getContext(), null);
         if (firebaseReady()) {
             // Invalidates the token; the backend prunes it on its next send.
             try { FirebaseMessaging.getInstance().deleteToken(); } catch (Exception ignored) {}
@@ -92,11 +101,79 @@ public class KlgNativePlugin extends Plugin {
         r.put("enabled", on);
         if (!firebaseReady()) r.put("reason", "Firebase is not configured in this build (google-services.json missing)");
         else if (!on) r.put("reason", "not registered");
-        if (Build.VERSION.SDK_INT >= 33) {
-            r.put("permission", ContextCompat.checkSelfPermission(getContext(), Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED);
-        } else {
-            r.put("permission", true);
+        // ColorOS / MIUI often turn notifications off for side-loaded apps on any Android version.
+        r.put("permission", NotificationManagerCompat.from(getContext()).areNotificationsEnabled());
+        r.put("ringChannel", OrderAlert.ringChannelOk(getContext()));
+        r.put("batteryUnrestricted", batteryUnrestricted());
+        r.put("autoStartScreen", autoStartIntent() != null);
+        r.put("manufacturer", Build.MANUFACTURER);
+        call.resolve(r);
+    }
+
+    private boolean batteryUnrestricted() {
+        PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        return pm == null || pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+    }
+
+    /** Phone-maker screens that decide whether a closed app may be woken by a push. */
+    private Intent autoStartIntent() {
+        String[][] screens = {
+                {"com.coloros.safecenter", "com.coloros.safecenter.startupapp.StartupAppListActivity"},
+                {"com.coloros.safecenter", "com.coloros.safecenter.permission.startup.StartupAppListActivity"},
+                {"com.oppo.safe", "com.oppo.safe.permission.startup.StartupAppListActivity"},
+                {"com.coloros.oppoguardelf", "com.coloros.powermanager.fuelgaue.PowerUsageModelActivity"},
+                {"com.miui.securitycenter", "com.miui.permcenter.autostart.AutoStartManagementActivity"},
+                {"com.vivo.permissionmanager", "com.vivo.permissionmanager.activity.BgStartUpManagerActivity"},
+                {"com.iqoo.secure", "com.iqoo.secure.ui.phoneoptimize.BgStartUpManager"},
+                {"com.huawei.systemmanager", "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"},
+                {"com.asus.mobilemanager", "com.asus.mobilemanager.autostart.AutoStartActivity"},
+        };
+        PackageManager pm = getContext().getPackageManager();
+        for (String[] s : screens) {
+            Intent i = new Intent().setComponent(new ComponentName(s[0], s[1])).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ResolveInfo ri = pm.resolveActivity(i, PackageManager.MATCH_DEFAULT_ONLY);
+            if (ri != null && ri.activityInfo != null && ri.activityInfo.exported) return i;
         }
+        return null;
+    }
+
+    private boolean tryStart(Intent i) {
+        try {
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private Intent appDetails() {
+        return new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getContext().getPackageName()));
+    }
+
+    /**
+     * Opens the phone setting that keeps alerts working with the app closed.
+     * what: "battery" | "autostart" | "notifications" | "app"
+     */
+    @PluginMethod
+    public void openAlertSettings(PluginCall call) {
+        String what = call.getString("what", "app");
+        String pkg = getContext().getPackageName();
+        boolean ok = false;
+        if ("battery".equals(what)) {
+            ok = tryStart(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:" + pkg)))
+                    || tryStart(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+        } else if ("autostart".equals(what)) {
+            Intent i = autoStartIntent();
+            ok = i != null && tryStart(i);
+        } else if ("notifications".equals(what)) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ok = tryStart(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, pkg));
+            }
+        }
+        if (!ok) ok = tryStart(appDetails());
+        JSObject r = new JSObject();
+        r.put("opened", ok);
         call.resolve(r);
     }
 
@@ -109,8 +186,7 @@ public class KlgNativePlugin extends Plugin {
         // Same order key as the FCM push, so one order never alerts twice.
         String key = call.getString("key");
         if (key != null && !OrderAlert.firstAlertFor(key)) { call.resolve(); return; }
-        OrderAlert.show(getContext(), title, body);
-        if (ring) OrderAlert.startRing(getContext(), key != null ? key : "local");
+        OrderAlert.show(getContext(), title, body, ring, key);
         call.resolve();
     }
 
@@ -159,9 +235,22 @@ public class KlgNativePlugin extends Plugin {
         call.resolve();
     }
 
+    /**
+     * Rings for an order whose alert screen is on display, even if a push or
+     * poll already rang for it (opening the app stops that earlier ring).
+     */
+    @PluginMethod
+    public void ring(PluginCall call) {
+        String key = call.getString("key");
+        OrderAlert.firstAlertFor(key); // so a late push/poll does not ring again
+        OrderAlert.show(getContext(), call.getString("title", "KLG Delivery"), call.getString("body", ""), true, key);
+        call.resolve();
+    }
+
+    /** key given: stop only that order's ring; otherwise every ring. */
     @PluginMethod
     public void stopRing(PluginCall call) {
-        OrderAlert.stopRing(null);
+        OrderAlert.stopRing(getContext(), call.getString("key"));
         call.resolve();
     }
 

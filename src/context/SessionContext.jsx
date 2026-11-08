@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { disablePush, enableAdminPush, stopRing } from '../services/native/notifications';
+import { disablePush, enableAdminPush, enableDriverPush, stopRing } from '../services/native/notifications';
 import { USE_MOCK_DATA } from '../config';
 
 // Who is using the app.
@@ -50,11 +50,12 @@ export function SessionProvider({ children }) {
     return () => window.removeEventListener('klg:unauthorized', onUnauthorized);
   }, [logout]);
 
-  // Admin phones receive the backend's new-order push; driver phones must not
-  // (the backend pushes every new order to every registered device).
+  // Admin phones get the restaurant's new-order push; driver phones register
+  // with their login and get only their own offers/assignments.
   useEffect(() => {
     if (USE_MOCK_DATA || !session) return;
     if (session.role === 'admin') enableAdminPush();
+    else if (session.role === 'driver') enableDriverPush(session.token);
     else disablePush();
   }, [session]);
 

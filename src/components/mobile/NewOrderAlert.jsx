@@ -6,6 +6,7 @@ import { autoAcceptCountdown } from '../../utils/status';
 import { fmtTime, inr, inr2 } from '../../utils/format';
 import { stopRing } from '../../services/native/notifications';
 import { USE_MOCK_DATA } from '../../config';
+import useRingWhileShown from '../../hooks/useRingWhileShown';
 
 /**
  * Pops up over every admin screen while a delivery order waits for an answer:
@@ -28,6 +29,12 @@ export default function NewOrderAlert() {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [order?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useRingWhileShown(
+    order?.id,
+    'New Delivery Order',
+    order ? `Order ${order.id} · ₹${Math.round(order.total)} · open to accept or reject` : '',
+  );
 
   if (!order) return null;
   const customer = customerById?.[order.customerId];

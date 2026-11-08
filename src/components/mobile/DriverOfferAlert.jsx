@@ -6,6 +6,7 @@ import { useData, useUi } from '../../context/DataContext';
 import { inr } from '../../utils/format';
 import { stopRing } from '../../services/native/notifications';
 import { shortId, needsCash } from './DriverDeliveryCard';
+import useRingWhileShown from '../../hooks/useRingWhileShown';
 
 // Restaurant has the order and this driver has not answered yet.
 const WAITING = ['ACCEPTED', 'PREPARING', 'PACKING', 'READY'];
@@ -26,6 +27,11 @@ export default function DriverOfferAlert({ meId }) {
 
   const waiting = db ? db.orders.filter((o) => awaitingDriver(o, meId) && !hidden.has(o.id)) : [];
   const order = waiting[0];
+  useRingWhileShown(
+    order?.id,
+    order?.offer ? 'New delivery offer' : 'New delivery assigned',
+    order ? `Order ${order.id} · ₹${Math.round(order.total)}${needsCash(order) ? ' · collect cash' : ''}` : '',
+  );
   if (!order) return null;
 
   const customer = customerById?.[order.customerId];

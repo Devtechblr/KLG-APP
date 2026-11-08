@@ -4,6 +4,7 @@ import PageHeader from '../../components/mobile/PageHeader';
 import { useData, useUi } from '../../context/DataContext';
 import { useSession } from '../../context/SessionContext';
 import { fmtDate, initials } from '../../utils/format';
+import BackgroundAlerts from '../../components/mobile/BackgroundAlerts';
 
 export default function DriverProfile() {
   const { me } = useOutletContext();
@@ -42,6 +43,10 @@ export default function DriverProfile() {
         <div className="kv"><span>Total delivered</span><b>{db.stats ? db.stats.totalRides : total}</b></div>
         {db.stats && <div className="kv"><span>Total distance</span><b>{Number(db.stats.totalKm || 0).toFixed(1)} km</b></div>}
         {me.joinedAt && <div className="kv"><span>Joined</span><b>{fmtDate(me.joinedAt)}</b></div>}
+      </section>
+
+      <section className="card section">
+        <BackgroundAlerts />
       </section>
 
       <button className="btn btn-danger-soft btn-block" onClick={signOut}><LogOut size={18} /> Log out</button>

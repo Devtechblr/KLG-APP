@@ -6,6 +6,7 @@ import { useData, useUi } from '../context/DataContext';
 import { API_BASE_URL, POLL_MS, USE_MOCK_DATA } from '../config';
 import { useSession } from '../context/SessionContext';
 import { alertUser, enableAdminPush, pushStatus } from '../services/native/notifications';
+import BackgroundAlerts from '../components/mobile/BackgroundAlerts';
 import { canUseBluetooth, getPrinter, listPrinters, setPrinter, testPrint } from '../services/native/printer';
 
 function PrinterSettings() {
@@ -102,6 +103,7 @@ function LiveSettings() {
         <button className="btn btn-ghost btn-block mt" onClick={() => alertUser({ title: 'Test alert', body: 'KLG Delivery alerts are working.', ring: true })}>
           Send a test alert
         </button>
+        <BackgroundAlerts />
       </Section>
 
       <Section icon={Printer} title="Printer" desc="Bluetooth receipt printer" defaultOpen>

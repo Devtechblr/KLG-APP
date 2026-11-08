@@ -15,6 +15,6 @@ public class MainActivity extends BridgeActivity {
     public void onResume() {
         super.onResume();
         // Opening the app answers the alert.
-        OrderAlert.stopRing(null);
+        OrderAlert.stopRing(this, null);
     }
 }

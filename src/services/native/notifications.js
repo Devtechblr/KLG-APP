@@ -4,9 +4,10 @@
 //   to every device registered at POST /public/device-tokens. enableAdminPush() registers
 //   this phone; the native KlgMessagingService rings and shows the alert even when the app
 //   is closed.
-// Driver phones: the backend has no per-driver push, so while the app is open (or recently
-//   backgrounded) we compare each poll with the previous one and raise a local alert for
-//   new assignments / offers / cancellations.
+// Driver phones: registered at POST /rider/device-token with the driver's login; the backend
+//   pushes DRIVER_OFFER only to the drivers an order is offered/assigned to (rings with the app
+//   closed) and DRIVER_OFFER_CLOSED when it is taken, reassigned or cancelled. While the app is
+//   alive, each poll is also compared with the previous one (same order key, so one ring).
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import { API_BASE_URL } from '../../config';
 
@@ -26,6 +27,15 @@ export async function enableAdminPush() {
   }
 }
 
+export async function enableDriverPush(authToken) {
+  if (!native() || !authToken) return { enabled: false, reason: native() ? 'not signed in' : 'web' };
+  try {
+    return await KlgNative.enablePush({ endpoint: `${API_BASE_URL}/rider/device-token`, authToken });
+  } catch (e) {
+    return { enabled: false, reason: e.message };
+  }
+}
+
 export async function disablePush() {
   adminPushOn = false;
   if (!native()) return;
@@ -37,8 +47,19 @@ export async function pushStatus() {
   try { return await KlgNative.pushStatus(); } catch (e) { return { enabled: false, reason: e.message }; }
 }
 
-export async function stopRing() {
-  if (native()) { try { await KlgNative.stopRing(); } catch { /* ignore */ } }
+// what: 'battery' | 'autostart' | 'notifications' | 'app'
+export async function openAlertSettings(what) {
+  if (!native()) return { opened: false };
+  try { return await KlgNative.openAlertSettings({ what }); } catch { return { opened: false }; }
+}
+
+export async function stopRing(key) {
+  if (native()) { try { await KlgNative.stopRing(key ? { key } : {}); } catch { /* ignore */ } }
+}
+
+// Ring (app sound) while an order's alert screen is on display.
+export async function ringFor({ key, title, body }) {
+  if (native()) { try { await KlgNative.ring({ key, title, body }); } catch { /* ignore */ } }
 }
 
 export async function alertUser({ title, body, ring = true, key }) {
@@ -69,6 +90,7 @@ export function notifyNewWork(prev, next, session) {
       const wasWaiting = old && old.driverId === me && !old.riderAccepted && ACTIVE.includes(old.status);
       if (waiting && !wasWaiting) {
         alertUser({
+          key: o.id, // same key as the DRIVER_OFFER push: rings once
           title: o.offer ? 'New delivery offer' : 'New delivery assigned',
           body: `Order ${o.id} · ₹${Math.round(o.total)}${o.paymentMethod === 'COD' ? ' · collect cash' : ''}`,
         });
