@@ -6,6 +6,7 @@ import { ADMIN_ROLES, USE_MOCK_DATA } from '../config';
 import { signIn } from '../services/api/apiService';
 import { useData } from '../context/DataContext';
 import { useSession } from '../context/SessionContext';
+import { friendlyError } from '../utils/errors';
 
 const HOME = { admin: '/admin/delivery-orders', driver: '/driver/active' };
 
@@ -45,7 +46,7 @@ export default function Login() {
       login(s);
       navigate(HOME[s.role], { replace: true });
     } catch (err) {
-      setAuthError(err.status === 401 ? 'Wrong email/phone or password.' : err.message || 'Sign-in failed.');
+      setAuthError(err.status === 401 ? 'Wrong email/phone or password.' : friendlyError(err));
     } finally {
       setLoading(false);
     }

@@ -2,7 +2,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { MapPin, Phone, Navigation, ChefHat, Clock, ChevronRight, Check, LocateFixed } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 import SwipeButton from './SwipeButton';
-import { fmtDateTime, fmtTime, inr, mapsHref, telHref } from '../../utils/format';
+import { fmtDateTime, fmtTime, inr, navHref, telHref } from '../../utils/format';
 import { useData, useUi } from '../../context/DataContext';
 
 // The steps a driver moves an order through once the restaurant hands it over.
@@ -137,7 +137,7 @@ export default function DriverDeliveryCard({ order, customer, done = false }) {
           {order.status === 'OUT_FOR_DELIVERY' && <LiveLocationPill sharing={sharing} />}
           <div className="jc-quick">
             <a className="qa" href={telHref(customer?.phone)}><span className="qa-ic green"><Phone size={20} /></span>Call</a>
-            <a className="qa" href={mapsHref(customer?.address)} target="_blank" rel="noreferrer"><span className="qa-ic purple"><Navigation size={20} /></span>Navigate</a>
+            <a className="qa" href={navHref(customer)} target="_blank" rel="noreferrer"><span className="qa-ic purple"><Navigation size={20} /></span>Navigate</a>
           </div>
           {step ? (
             <SwipeButton label={step.label} onConfirm={() => advance(order)} tone={step.to === 'DELIVERED' ? 'green' : 'orange'} />

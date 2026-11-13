@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Phone, Printer, User, Bike, ChevronDown, Navigation, Repeat, Eye, IndianRupee } from 'lucide-react';
 import StatusBadge from './StatusBadge';
-import { fmtTime, inr, inr2, mapsHref, telHref } from '../../utils/format';
+import { fmtTime, inr, inr2, navHref, telHref } from '../../utils/format';
 import { NEXT_STEP, canAssign, canCancel, needsDriverFor, driverHandoff, autoAcceptCountdown } from '../../utils/status';
 import useOrderActions from './useOrderActions';
 
@@ -46,7 +46,7 @@ export default function DeliveryCard({ order, customer, driver, onView, onAssign
         </div>
         <div className="dc-quick">
           <a className="round-btn green" href={telHref(customer?.phone)} aria-label={`Call ${customer?.name}`}><Phone size={18} /></a>
-          <a className="round-btn blue" href={mapsHref(customer?.address)} target="_blank" rel="noreferrer" aria-label="Open address in Google Maps"><Navigation size={18} /></a>
+          <a className="round-btn blue" href={navHref(customer)} target="_blank" rel="noreferrer" aria-label="Open address in Google Maps"><Navigation size={18} /></a>
         </div>
       </section>
 

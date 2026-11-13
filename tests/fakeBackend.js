@@ -145,8 +145,8 @@ export function createBackend() {
         const o = state.orders.find((x) => x._id === m[1]);
         if (!o) return fail(404, 'Order not found');
         if (body.mode === 'AUTO') {
-          const busy = new Set(state.orders.filter((x) => ['ACCEPTED', 'OUT_FOR_DELIVERY'].includes(x.orderStatus) && x.riderId).map((x) => x.riderId));
-          const avail = state.riders.filter((r) => r.status !== 'OFFLINE' && !busy.has(r._id));
+          // Drivers can carry several orders: every online driver gets the offer.
+          const avail = state.riders.filter((r) => r.status !== 'OFFLINE');
           Object.assign(o, { assignmentMode: 'AUTO', offeredRiderIds: avail.map((r) => r._id), rejectedRiderIds: [], riderId: null, riderName: null, riderPhone: null, riderAcceptedAt: null });
           avail.forEach((r) => state.notifications.push({ _id: `n${state.notifications.length + 1}`, riderId: r._id, orderId: o.orderId, title: 'New Delivery Offer Available', type: 'AUTO_OFFER', read: false }));
           return ok({ data: o });
@@ -218,9 +218,7 @@ export function createBackend() {
         if (!o) return fail(404, 'Order not found');
         const act = m[2];
         if (act === 'accept') {
-          const other = state.orders.find((x) => mine(x) && RIDER_ACTIVE.includes(x.orderStatus) && x.riderAcceptedAt && x.orderId !== o.orderId);
-          if (other) return fail(400, 'You already have an active delivery. Please complete your current delivery before accepting a new one.');
-          if (me.status !== 'AVAILABLE') return fail(400, 'You must be ONLINE and AVAILABLE to accept deliveries.');
+          if (me.status === 'OFFLINE') return fail(400, 'Go online to accept deliveries.');
           const can = ['ACCEPTED', 'PREPARING', 'PACKING', 'READY'].includes(o.orderStatus) &&
             (mine(o) || (o.assignmentMode === 'AUTO' && !o.riderId && !o.rejectedRiderIds.includes(me._id)));
           if (!can) return fail(400, 'This delivery has already been accepted by another driver or is unavailable.');
@@ -246,7 +244,7 @@ export function createBackend() {
           o.orderStatus = 'DELIVERED';
           o.deliveredAt = now();
           push(o, 'DELIVERED', `RIDER_${me.email}`);
-          me.status = 'AVAILABLE';
+          if (!state.orders.some((x) => x !== o && mine(x) && RIDER_ACTIVE.includes(x.orderStatus) && x.riderAcceptedAt)) me.status = 'AVAILABLE';
           return ok({ order: o });
         }
         if (act === 'location') {

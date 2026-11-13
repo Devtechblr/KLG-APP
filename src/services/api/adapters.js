@@ -2,6 +2,8 @@
 // Backend order: { _id, orderId, orderStatus, riderId, riderAcceptedAt, deliveryDetails, items[{name, price, quantity}], ... }
 // App order:     { id, _id, status, driverId, customerId, items[{name, price, qty}], total, timeline[], ... }
 
+import { splitAddress } from '../../utils/format';
+
 const STATUS_MAP = {
   PENDING: 'PENDING',
   ACCEPTED: 'ACCEPTED',
@@ -41,12 +43,13 @@ function timeline(o) {
 export function toCustomer(o) {
   const d = o.deliveryDetails || {};
   const user = typeof o.userId === 'object' ? o.userId : null;
-  const address = [d.address, d.city, d.postalCode].filter(Boolean).join(', ');
+  const { address, mapsUrl } = splitAddress([d.address, d.city, d.postalCode].filter(Boolean).join(', '));
   return {
     id: `c-${o.orderId}`,
     name: d.fullName || o.customerName || user?.name || 'Customer',
     phone: d.phoneNumber || user?.phone || o.payment?.contact || '',
     address: address || 'Address not provided',
+    mapsUrl,
     area: d.city || '',
     lat: d.latitude ?? null,
     lng: d.longitude ?? null,

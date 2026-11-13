@@ -8,6 +8,7 @@ import { useSession } from '../context/SessionContext';
 import { alertUser, enableAdminPush, pushStatus } from '../services/native/notifications';
 import BackgroundAlerts from '../components/mobile/BackgroundAlerts';
 import { canUseBluetooth, getPrinter, listPrinters, setPrinter, testPrint } from '../services/native/printer';
+import { alertsError, printerError } from '../utils/errors';
 
 function PrinterSettings() {
   const { toast } = useUi();
@@ -22,13 +23,13 @@ function PrinterSettings() {
       const list = await listPrinters();
       setDevices(list);
       if (!list.length) toast('No paired Bluetooth devices. Pair the printer in Android Bluetooth settings first.', 'warning');
-    } catch (e) { toast(e.message || 'Could not read Bluetooth devices', 'danger'); }
+    } catch (e) { toast(printerError(e), 'danger'); }
     setBusy('');
   };
   const choose = (d) => { save({ address: d.address, name: d.name, autoPrint: printer?.autoPrint ?? true }); toast(`Printer set: ${d.name}`); };
   const test = async () => {
     setBusy('test');
-    try { await testPrint(printer); toast('Test receipt sent to the printer'); } catch (e) { toast(e.message || 'Print failed', 'danger'); }
+    try { await testPrint(printer); toast('Test receipt sent to the printer'); } catch (e) { toast(printerError(e), 'danger'); }
     setBusy('');
   };
 
@@ -76,13 +77,13 @@ function LiveSettings() {
   const enable = async () => {
     const r = await enableAdminPush();
     setPush(await pushStatus());
-    toast(r.enabled ? 'Order alerts are on for this phone' : `Could not turn on alerts: ${r.reason || 'unknown'}`, r.enabled ? 'success' : 'danger');
+    toast(r.enabled ? 'Order alerts are on for this phone' : alertsError(r.reason), r.enabled ? 'success' : 'danger');
   };
 
   const pushText = !push ? 'Checking…'
     : push.enabled ? 'On – this phone rings for every new delivery order, even when the app is closed.'
     : push.reason === 'web' ? 'Push alerts work in the Android app. In the browser you get alerts only while this tab is open.'
-    : `Off – ${push.reason || 'not registered'}`;
+    : `Off – ${alertsError(push.reason)}`;
 
   return (
     <div className="page">

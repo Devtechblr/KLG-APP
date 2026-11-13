@@ -16,6 +16,24 @@ export const DAY_MS = 86400000;
 
 export const telHref = (p) => `tel:+91${String(p).replace(/\D/g, '').slice(-10)}`;
 export const mapsHref = (address) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
+// Customers often paste "(Google Maps Link: https://...)" into the address. Show the address
+// without it (a long URL can't wrap and pushed the driver card off-screen) and use it for Navigate.
+const MAPS_LINK = /\(?\s*google\s*maps?\s*link\s*:?\s*(https?:\/\/[^\s)]+)\s*\)?/i;
+const ANY_URL = /https?:\/\/[^\s)]+/i;
+export function splitAddress(raw = '') {
+  const text = String(raw || '');
+  const m = text.match(MAPS_LINK) || text.match(ANY_URL);
+  if (!m) return { address: text.trim(), mapsUrl: null };
+  const address = text.replace(m[0], ' ')
+    .replace(/\(\s*\)/g, ' ')
+    .replace(/\s*,\s*(,\s*)+/g, ', ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,]+|[\s,]+$/g, '');
+  return { address, mapsUrl: m[1] || m[0] };
+}
+// Best link to open Google Maps for a customer: their own pin, then GPS, then the address text.
+export const navHref = (c) => c?.mapsUrl || mapsHref(c?.lat != null && c?.lng != null ? `${c.lat},${c.lng}` : c?.address || '');
 export const initials = (name = '') => name.split(' ').map((s) => s[0]).join('').slice(0, 2).toUpperCase();
 export const greeting = () => {
   const h = new Date().getHours();

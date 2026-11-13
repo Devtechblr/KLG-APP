@@ -160,11 +160,26 @@ describe('driver rules from the backend are shown to the driver', () => {
     renderApp();
     await signIn('9000000002', 'sita-pass');
     await swipe('Swipe to accept delivery');
-    expect(await screen.findByText('You must be ONLINE and AVAILABLE to accept deliveries.')).toBeInTheDocument();
+    expect(await screen.findByText('Go online to accept deliveries.')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('checkbox')[0]); // Online toggle
     await waitFor(() => expect(be.state.riders[1].status).toBe('AVAILABLE'));
     await swipe('Swipe to accept delivery');
     await waitFor(() => expect(be.state.orders[0].riderAcceptedAt).not.toBeNull());
+  });
+
+  it('a driver can accept a second order while the first is still active', async () => {
+    const be = installFakeBackend();
+    be.state.riders[1].status = 'AVAILABLE';
+    be.state.orders.push(makeOrder({ n: 3004, orderStatus: 'READY', riderId: 'r2', riderName: 'Sita Driver' }));
+    be.state.orders.push(makeOrder({ n: 3005, orderStatus: 'READY', riderId: 'r2', riderName: 'Sita Driver' }));
+    renderApp();
+    await signIn('9000000002', 'sita-pass');
+    const swipeFirst = async () => fireEvent.keyDown((await screen.findAllByRole('button', { name: 'Swipe to accept delivery' }))[0], { key: 'Enter' });
+    await swipeFirst();
+    await waitFor(() => expect(be.state.orders.filter((o) => o.riderAcceptedAt).length).toBe(1));
+    await swipeFirst();
+    await waitFor(() => expect(be.state.orders.filter((o) => o.riderAcceptedAt).length).toBe(2));
+    expect(screen.queryByText(/already have an active delivery/i)).not.toBeInTheDocument();
   });
 });
 

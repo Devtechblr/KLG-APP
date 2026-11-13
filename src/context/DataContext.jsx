@@ -3,6 +3,7 @@ import { dataService } from '../services';
 import { STATUS } from '../utils/status';
 import { useSession } from './SessionContext';
 import { notifyNewWork } from '../services/native/notifications';
+import { friendlyError } from '../utils/errors';
 
 const DataCtx = createContext(null);
 const UiCtx = createContext(null);
@@ -20,6 +21,8 @@ export function DataProvider({ children }) {
 
   const toast = useCallback((message, tone = 'success') => {
     const id = Math.random().toString(36).slice(2);
+    // Safety net: an error toast never shows raw server/system text.
+    if (tone === 'danger') message = friendlyError(message);
     setToasts((t) => [...t, { id, message, tone }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 2800);
   }, []);
@@ -41,7 +44,7 @@ export function DataProvider({ children }) {
     try {
       apply(await dataService.loadAll());
     } catch (e) {
-      if (!silent || !dbRef.current) setError(e.message);
+      if (!silent || !dbRef.current) setError(friendlyError(e));
       else throw e;
     } finally {
       setLoading(false);
@@ -66,7 +69,7 @@ export function DataProvider({ children }) {
     mutator(next);
     dbRef.current = next;
     setDb(next);
-    dataService.save(next).catch((e) => toast(e.message, 'danger'));
+    dataService.save(next).catch((e) => toast(friendlyError(e), 'danger'));
   }, [toast]);
 
   // API mode: call the backend, then re-read so the screen shows the server's truth.
@@ -75,7 +78,7 @@ export function DataProvider({ children }) {
       await fn();
       if (okMsg) toast(okMsg);
     } catch (e) {
-      toast(e.message || 'Something went wrong', 'danger');
+      toast(friendlyError(e), 'danger');
       return false;
     } finally {
       try { await load(true); } catch { /* shown on next poll */ }
@@ -89,7 +92,7 @@ export function DataProvider({ children }) {
     const driverOf = (id) => dbRef.current?.drivers.find((d) => d.id === id);
     const label = (s) => STATUS[s]?.label || { RIDER_ACCEPT: 'Accepted', RIDER_REJECT: 'Declined' }[s] || s;
     return {
-      refresh: async () => { setLoading(true); try { await load(true); toast('Updated'); } catch (e) { toast(e.message, 'danger'); } setLoading(false); },
+      refresh: async () => { setLoading(true); try { await load(true); toast('Updated'); } catch (e) { toast(friendlyError(e), 'danger'); } setLoading(false); },
       reset: async () => { await load(); },
       setStatus: (orderId, status, note) => run(() => a.setStatus(orderOf(orderId), status, note), `${orderId} → ${label(status)}`),
       // 60 s without an answer: accept quietly (the server does the same; whichever is first wins).
@@ -129,7 +132,7 @@ export function DataProvider({ children }) {
         dbRef.current = data;
         setDb(data);
         toast('Demo data reset');
-      } catch (e) { toast(e.message, 'danger'); }
+      } catch (e) { toast(friendlyError(e), 'danger'); }
       setLoading(false);
     },
     autoAccept: async () => false,

@@ -3,6 +3,7 @@
 // through native HTTP. That request carries no Origin header, so the backend's
 // CORS allow-list (which rejects the WebView origin https://localhost) is skipped.
 import { API_BASE_URL } from '../../config';
+import { friendlyError } from '../../utils/errors';
 
 const SESSION_KEY = 'klg.session';
 
@@ -13,6 +14,8 @@ export class ApiError extends Error {
     this.body = body;
   }
 }
+
+export { friendlyError } from '../../utils/errors';
 
 function token() {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY))?.token || null; } catch { return null; }
@@ -47,7 +50,7 @@ export async function api(path, { method = 'GET', body, query, auth = true, time
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }
 
   if (!res.ok || data?.success === false) {
-    const msg = data?.message || `Request failed (${res.status})`;
+    const msg = friendlyError(data?.message || data?.error, res.status);
     if (res.status === 401 && auth) window.dispatchEvent(new CustomEvent('klg:unauthorized', { detail: msg }));
     throw new ApiError(msg, res.status, data);
   }

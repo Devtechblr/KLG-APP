@@ -11,7 +11,7 @@ import LoadingSkeleton from '../components/mobile/LoadingSkeleton';
 import EmptyState from '../components/mobile/EmptyState';
 import useOrderActions from '../components/mobile/useOrderActions';
 import { useData } from '../context/DataContext';
-import { fmtDateTime, fmtTime, inr2, mapsHref, telHref, initials } from '../utils/format';
+import { fmtDateTime, fmtTime, inr2, navHref, telHref, initials } from '../utils/format';
 import { STATUS, STATUS_KEYS, NEXT_STEP, FLOW, FLOW_LABEL, flowIndex, canAssign, canCancel, needsDriverFor, orderDriver, driverHandoff, autoAcceptCountdown } from '../utils/status';
 import { USE_MOCK_DATA } from '../config';
 
@@ -96,7 +96,7 @@ export default function DeliveryDetails() {
         <h2 className="sec-title mt"><MapPin size={16} /> Delivery Address</h2>
         <p className="address-text">{customer?.address}</p>
         <div className="row-2">
-          <a className="btn btn-ghost" href={mapsHref(customer?.address)} target="_blank" rel="noreferrer"><Navigation size={16} /> Open in Maps</a>
+          <a className="btn btn-ghost" href={navHref(customer)} target="_blank" rel="noreferrer"><Navigation size={16} /> Open in Maps</a>
           {order.distanceKm ? <span className="pill-muted">≈ {order.distanceKm} km</span> : null}
         </div>
         {order.notes && <p className="note"><StickyNote size={14} /> {order.notes}</p>}

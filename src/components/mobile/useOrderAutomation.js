@@ -3,6 +3,7 @@ import { useData, useUi } from '../../context/DataContext';
 import { AUTO_ACCEPT_AFTER_MS } from '../../utils/status';
 import { autoPrintOn, markPrinted, printOrder, wasPrinted } from '../../services/native/printer';
 import { USE_MOCK_DATA } from '../../config';
+import { printerError } from '../../utils/errors';
 
 const ACCEPTED = ['ACCEPTED', 'PREPARING'];
 const RECENT_MS = 15 * 60_000; // auto-accepted while the app was closed: still print if this recent
@@ -58,7 +59,7 @@ export default function useOrderAutomation() {
       markPrinted(o.id); // once per order, even if the printer is off (reprint from the card)
       printOrder(o, customerById[o.customerId])
         .then(() => toast(`Receipt printed · ${o.id}`))
-        .catch((e) => toast(`Auto-print failed for ${o.id}: ${e.message || e}. Tap the printer icon to retry.`, 'danger'))
+        .catch((e) => toast(`Auto-print failed for ${o.id}. ${printerError(e)}`, 'danger'))
         .finally(() => printing.current.delete(o.id));
     });
   }, [db, customerById, toast, actions]);

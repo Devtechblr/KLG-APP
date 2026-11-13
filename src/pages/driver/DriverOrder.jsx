@@ -6,7 +6,7 @@ import EmptyState from '../../components/mobile/EmptyState';
 import { driverStep, driverWaitText, needsCash, shortId, useDriverAdvance, useDriverDecline, JobSteps, nextHint, LiveLocationPill } from '../../components/mobile/DriverDeliveryCard';
 import { useData } from '../../context/DataContext';
 import { stopRing } from '../../services/native/notifications';
-import { fmtTime, inr, inr2, mapsHref, telHref } from '../../utils/format';
+import { fmtTime, inr, inr2, navHref, telHref } from '../../utils/format';
 
 // Driver-facing timeline, simpler than the admin one.
 const STEPS = [
@@ -66,7 +66,7 @@ export default function DriverOrder() {
       <section className="card map-card">
         <span className="map-chip"><Store size={13} /> Krishna Leela Grand</span>
         <iframe title="Delivery location map" src={mapSrc} loading="lazy" referrerPolicy="no-referrer-when-downgrade" />
-        <a className="map-go" href={mapsHref(where)} target="_blank" rel="noreferrer"><Navigation size={16} /> Navigate</a>
+        <a className="map-go" href={navHref(customer)} target="_blank" rel="noreferrer"><Navigation size={16} /> Navigate</a>
       </section>
 
       <section className="card section">
