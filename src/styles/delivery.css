@@ -134,6 +134,8 @@
 }
 .swipe-green .swipe-knob { color: #22A55A; }
 .swipe-knob.is-dragging { transition: none; cursor: grabbing; }
+.swipe.is-busy .swipe-label { padding: 0 60px 0 12px; }
+.swipe-knob:disabled { opacity: 1; cursor: progress; }
 .swipe-knob:focus-visible { outline: 3px solid #fff; outline-offset: -6px; }
 
 /* Order screen */

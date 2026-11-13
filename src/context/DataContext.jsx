@@ -91,10 +91,33 @@ export function DataProvider({ children }) {
     const orderOf = (id) => dbRef.current?.orders.find((o) => o.id === id);
     const driverOf = (id) => dbRef.current?.drivers.find((d) => d.id === id);
     const label = (s) => STATUS[s]?.label || { RIDER_ACCEPT: 'Accepted', RIDER_REJECT: 'Declined' }[s] || s;
+    // Show the result on screen right away; the reload after the call brings
+    // the server's truth (and undoes this if the call failed).
+    const optimistic = (orderId, status) => {
+      const patch = status === 'RIDER_ACCEPT' ? { riderAccepted: true, offer: false }
+        : STATUS[status] ? { status } : null;
+      if (!patch || !dbRef.current) return;
+      const next = { ...dbRef.current, orders: dbRef.current.orders.map((o) => (o.id === orderId ? { ...o, ...patch } : o)) };
+      dbRef.current = next;
+      setDb(next);
+    };
     return {
       refresh: async () => { setLoading(true); try { await load(true); toast('Updated'); } catch (e) { toast(friendlyError(e), 'danger'); } setLoading(false); },
       reset: async () => { await load(); },
-      setStatus: (orderId, status, note) => run(() => a.setStatus(orderOf(orderId), status, note), `${orderId} → ${label(status)}`),
+      setStatus: async (orderId, status, note) => {
+        const order = orderOf(orderId);
+        try {
+          await a.setStatus(order, status, note);
+        } catch (e) {
+          toast(friendlyError(e), 'danger');
+          load(true).catch(() => { /* shown on next poll */ });
+          return false;
+        }
+        optimistic(orderId, status);
+        toast(`${orderId} → ${label(status)}`);
+        load(true).catch(() => { /* shown on next poll */ }); // background, don't block the UI
+        return true;
+      },
       // 60 s without an answer: accept quietly (the server does the same; whichever is first wins).
       autoAccept: async (orderId) => {
         const o = orderOf(orderId);

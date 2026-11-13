@@ -45,7 +45,7 @@ export function useDriverAdvance() {
       });
       if (!ok) return;
     }
-    actions.setStatus(order.id, step.to, 'Updated by driver');
+    return actions.setStatus(order.id, step.to, 'Updated by driver');
   };
 }
 
