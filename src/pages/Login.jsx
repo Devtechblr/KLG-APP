@@ -43,7 +43,7 @@ export default function Login() {
       if (s.role === 'admin' && !ADMIN_ROLES.includes(s.adminRole)) {
         throw new Error(`The "${s.adminRole}" role can't use the delivery app.`);
       }
-      login(s);
+      login(s, { identifier, password }); // saved so the app can sign in again when the 24 h token expires
       navigate(HOME[s.role], { replace: true });
     } catch (err) {
       setAuthError(err.status === 401 ? 'Wrong email/phone or password.' : friendlyError(err));

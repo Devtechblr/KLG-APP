@@ -21,11 +21,11 @@ function token() {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY))?.token || null; } catch { return null; }
 }
 
-export async function api(path, { method = 'GET', body, query, auth = true, timeoutMs = 20000 } = {}) {
+export async function api(path, { method = 'GET', body, query, auth = true, timeoutMs = 20000, headers: extra } = {}) {
   const url = new URL(API_BASE_URL + path);
   if (query) Object.entries(query).forEach(([k, v]) => v != null && v !== '' && url.searchParams.set(k, v));
 
-  const headers = { Accept: 'application/json' };
+  const headers = { Accept: 'application/json', ...extra };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const t = auth ? token() : null;
   if (t) headers.Authorization = `Bearer ${t}`;

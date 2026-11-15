@@ -7,6 +7,7 @@ import App from '../src/App';
 import { DataProvider } from '../src/context/DataContext';
 import { SessionProvider } from '../src/context/SessionContext';
 import { installFakeBackend, makeOrder } from './fakeBackend';
+import { resetOrderModes } from '../src/hooks/useOrderModes';
 
 function renderApp(path = '/login') {
   return render(
@@ -44,16 +45,43 @@ describe('sign-in', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/"Self" role can't use the delivery app/);
   });
 
-  it('sends an expired session back to sign-in', async () => {
+  it('signs in again by itself when the 24 h token expires (alerts keep working next day)', async () => {
     const be = installFakeBackend();
     be.state.orders.push(makeOrder({ n: 1 }));
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
     await screen.findAllByText('KLG-T1');
-    be.state.tokens.clear(); // server revokes the token
+    const first = JSON.parse(localStorage.getItem('klg.session')).token;
+    be.state.tokens.clear(); // token expired on the server
     click('Accept Order');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Your session expired');
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('klg.session') || '{}').token).not.toBe(first));
+    expect(screen.queryByText(/Your session expired/)).toBeNull();
+    expect(screen.getAllByText('KLG-T1').length).toBeGreaterThan(0);
+  });
+
+  it('renews an expired saved session when the app is opened the next day', async () => {
+    const be = installFakeBackend();
+    be.state.orders.push(makeOrder({ n: 1 }));
+    const old = be.sign('admin', 'a1', 'Delivery', -60); // expired a minute ago
+    localStorage.setItem('klg.session', JSON.stringify({ role: 'admin', token: old, adminRole: 'Delivery', adminId: 'a1', name: 'Front Desk' }));
+    localStorage.setItem('klg.autologin', JSON.stringify({ identifier: 'desk@klg.test', password: 'desk-pass' }));
+    renderApp('/admin/delivery-orders');
+    await screen.findAllByText('KLG-T1');
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('klg.session')).token).not.toBe(old));
+  });
+
+  it('goes back to sign-in when the saved password no longer works', async () => {
+    const be = installFakeBackend();
+    be.state.orders.push(makeOrder({ n: 1 }));
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    await screen.findAllByText('KLG-T1');
+    be.state.admins[0].password = 'changed';
+    be.state.tokens.clear();
+    click('Accept Order');
+    expect(await screen.findByRole('alert')).toHaveTextContent('password was changed');
     expect(localStorage.getItem('klg.session')).toBeNull();
+    expect(localStorage.getItem('klg.autologin')).toBeNull();
   });
 });
 
@@ -199,6 +227,135 @@ describe('drivers management', () => {
     fireEvent.change(screen.getByPlaceholderText('KA-05-AB-1234'), { target: { value: 'ka03ef9999' } });
     click('Add driver');
     await waitFor(() => expect(be.state.riders.at(-1)).toMatchObject({ name: 'Kiran New', phone: '9000000009', password: 'kiran-pass', vehicleNumber: 'KA03EF9999' }));
+  });
+});
+
+describe('ordering on / off (same switches as the admin website)', () => {
+  const bar = () => within(document.querySelector('.m-modes'));
+  const topBar = async () => {
+    await waitFor(() => expect(document.querySelector('.m-modes')).not.toBeNull());
+    return bar();
+  };
+
+  it('the order desk (Delivery role) turns Delivery off and on from the top bar', async () => {
+    const be = installFakeBackend();
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    const delivery = (await topBar()).getByRole('checkbox', { name: 'Delivery Orders' });
+    expect(delivery).toBeChecked();
+    expect(bar().getByRole('checkbox', { name: 'Self Order (Pickup) Orders' })).toBeChecked();
+    expect(document.documentElement).toHaveClass('with-modes');
+
+    fireEvent.click(delivery); // OFF asks first
+    await confirmDialog('Turn OFF');
+    await waitFor(() => expect(be.state.settings.deliveryHours.enabled).toBe(false));
+    expect(be.state.settings.pickupHours.enabled).toBe(true);
+    await waitFor(() => expect(bar().getByRole('checkbox', { name: 'Delivery Orders' })).not.toBeChecked());
+
+    fireEvent.click(bar().getByRole('checkbox', { name: 'Delivery Orders' })); // ON is instant
+    await waitFor(() => expect(be.state.settings.deliveryHours.enabled).toBe(true));
+  });
+
+  it('cancelling the OFF question changes nothing', async () => {
+    const be = installFakeBackend();
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    fireEvent.click((await topBar()).getByRole('checkbox', { name: 'Self Order (Pickup) Orders' }));
+    await confirmDialog('Go back');
+    expect(be.state.settings.pickupHours.enabled).toBe(true);
+    expect(bar().getByRole('checkbox', { name: 'Self Order (Pickup) Orders' })).toBeChecked();
+  });
+
+  it('Settings shows the same switches as the top bar', async () => {
+    const be = installFakeBackend();
+    be.state.settings.pickupHours.enabled = false;
+    const view = renderApp();
+    await signIn('owner@klg.test', 'owner-pass');
+    await waitFor(() => expect(localStorage.getItem('klg.session')).not.toBeNull());
+    view.unmount();
+    renderApp('/admin/settings');
+    const page = within(document.querySelector('.main'));
+    expect(await page.findByRole('checkbox', { name: 'Self Order (Pickup) Orders' })).not.toBeChecked();
+    expect(page.getByRole('checkbox', { name: 'Delivery Orders' })).toBeChecked();
+  });
+
+  it('before the server update: Admin still works, the order desk is told to update', async () => {
+    let be = installFakeBackend();
+    be.state.oldServer = true;
+    let view = renderApp();
+    await signIn('owner@klg.test', 'owner-pass');
+    fireEvent.click((await topBar()).getByRole('checkbox', { name: 'Self Order (Pickup) Orders' }));
+    await confirmDialog('Turn OFF');
+    await waitFor(() => expect(be.state.settings.pickupHours.enabled).toBe(false));
+    view.unmount();
+    localStorage.clear();
+    resetOrderModes(); // what Log out does
+
+    be = installFakeBackend();
+    be.state.oldServer = true;
+    view = renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    await waitFor(() => expect(localStorage.getItem('klg.session')).not.toBeNull());
+    view.unmount();
+    renderApp('/admin/settings');
+    expect(await screen.findByText('Needs the latest KLG server update.')).toBeInTheDocument();
+    expect(document.querySelector('.m-modes')).toBeNull();
+  });
+});
+
+describe('staff controls: lock icon -> PIN -> menu items on / off', () => {
+  const openStaff = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'Staff controls' }));
+    return screen.findByLabelText('Staff PIN');
+  };
+
+  it('wrong PIN is refused; the right PIN opens the items; unticking hides an item for customers', async () => {
+    const be = installFakeBackend();
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    let pin = await openStaff();
+    fireEvent.change(pin, { target: { value: '1111' } });
+    expect(await screen.findByText('Wrong PIN. Try again.')).toBeInTheDocument();
+    expect(localStorage.getItem('klg.session')).not.toBeNull(); // a wrong PIN never signs you out
+
+    pin = screen.getByLabelText('Staff PIN');
+    fireEvent.change(pin, { target: { value: '4321' } });
+    const dosa = await screen.findByRole('checkbox', { name: 'Dosa' });
+    expect(dosa).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Lemon Tea' })).not.toBeChecked();
+    expect(screen.getByText(/1 hidden/)).toBeInTheDocument();
+
+    fireEvent.click(dosa);
+    await waitFor(() => expect(be.state.menuItems.find((i) => i.name === 'Dosa').isAvailable).toBe(false));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Lemon Tea' }));
+    await waitFor(() => expect(be.state.menuItems.find((i) => i.name === 'Lemon Tea').isAvailable).toBe(true));
+  });
+
+  it('search and category filter the list; closing locks it again', async () => {
+    installFakeBackend();
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    fireEvent.change(await openStaff(), { target: { value: '4321' } });
+    await screen.findByRole('checkbox', { name: 'Dosa' });
+
+    fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'beverages' } });
+    expect(screen.queryByRole('checkbox', { name: 'Dosa' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Coffee' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Search items…'), { target: { value: 'lemon' } });
+    expect(screen.queryByRole('checkbox', { name: 'Coffee' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Lemon Tea' })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(await openStaff()).toBeInTheDocument(); // asks for the PIN again
+  });
+
+  it('before the server update it says so', async () => {
+    const be = installFakeBackend();
+    be.state.oldServer = true;
+    renderApp();
+    await signIn('desk@klg.test', 'desk-pass');
+    fireEvent.change(await openStaff(), { target: { value: '4321' } });
+    expect(await screen.findByText('Needs the latest KLG server update.')).toBeInTheDocument();
   });
 });
 

@@ -9,6 +9,7 @@ import { alertUser, enableAdminPush, pushStatus } from '../services/native/notif
 import BackgroundAlerts from '../components/mobile/BackgroundAlerts';
 import { canUseBluetooth, getPrinter, listPrinters, setPrinter, testPrint } from '../services/native/printer';
 import { alertsError, printerError } from '../utils/errors';
+import OrderModeSwitches from '../components/mobile/OrderModeSwitches';
 
 function PrinterSettings() {
   const { toast } = useUi();
@@ -94,6 +95,10 @@ function LiveSettings() {
         {session?.email && <div className="kv"><span>Email</span><b>{session.email}</b></div>}
         <div className="kv"><span>Role</span><b>{session?.adminRole}</b></div>
         <p className="muted small">Change your password or add admins on the KLG admin website.</p>
+      </Section>
+
+      <Section icon={Store} title="Ordering" desc="Turn Delivery / Pickup orders on or off" defaultOpen>
+        <OrderModeSwitches />
       </Section>
 
       <Section icon={Bell} title="Order alerts" desc="New delivery order notifications" defaultOpen>

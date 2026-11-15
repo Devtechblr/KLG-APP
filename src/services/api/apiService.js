@@ -122,6 +122,41 @@ export const apiService = {
     toggleDriverOnline: (driver) => (session()?.role === 'driver'
       ? api('/rider/status', { method: 'PATCH', body: { status: driver.online ? 'OFFLINE' : 'AVAILABLE' } })
       : api(`/admin/riders/${driver.id}/status`, { method: 'PATCH', body: { status: driver.online ? 'OFFLINE' : 'AVAILABLE' } })),
+    // Delivery / Self Order (Pickup) ON-OFF switches — same setting as the admin
+    // website's Settings → Operating Hours. /admin/order-modes is open to the
+    // Delivery role; until that server update is live, fall back to
+    // /admin/settings (Super Admin / Admin only).
+    getOrderModes: async () => {
+      try {
+        const { data = {} } = await api('/admin/order-modes');
+        return { delivery: data.deliveryEnabled !== false, pickup: data.pickupEnabled !== false };
+      } catch (e) {
+        if (e.status !== 404) throw e;
+        // Old server: only Super Admin / Admin can read it there.
+        const { data = {} } = await api('/admin/settings').catch((e2) => { throw e2.status === 403 ? e : e2; });
+        return { delivery: data.deliveryHours?.enabled !== false, pickup: data.pickupHours?.enabled !== false };
+      }
+    },
+    setOrderMode: async (mode, enabled) => {
+      const field = mode === 'pickup' ? 'pickupEnabled' : 'deliveryEnabled';
+      try {
+        const { data = {} } = await api('/admin/order-modes', { method: 'PATCH', body: { [field]: enabled } });
+        return { delivery: data.deliveryEnabled !== false, pickup: data.pickupEnabled !== false };
+      } catch (e) {
+        if (e.status !== 404) throw e;
+        await api('/admin/settings', { method: 'PUT', body: { [field]: enabled } }).catch((e2) => { throw e2.status === 403 ? e : e2; });
+        return null;
+      }
+    },
+    // Staff Controls: menu items ON/OFF for all customers (needs the staff PIN).
+    staffMenu: async (pin) => {
+      const { data = {} } = await api('/admin/staff/menu-items', { headers: { 'X-Staff-Pin': pin } });
+      return { items: data.items || [], categories: data.categories || [] };
+    },
+    setItemAvailable: async (pin, id, isAvailable) => {
+      const { data } = await api(`/admin/staff/menu-items/${id}`, { method: 'PATCH', headers: { 'X-Staff-Pin': pin }, body: { isAvailable } });
+      return data;
+    },
     markNotificationRead: (id) => api(`/rider/notifications/${id}/read`, { method: 'POST', body: {} }),
     sendLocation: (order, coords) => api(`/rider/orders/${encodeURIComponent(order.id)}/location`, {
       method: 'POST', body: { latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy },

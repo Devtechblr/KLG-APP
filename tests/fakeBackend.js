@@ -61,7 +61,17 @@ export function makeOrder(over = {}) {
 export function createBackend() {
   const state = {
     admins: [{ _id: 'a1', name: 'Front Desk', email: 'desk@klg.test', password: 'desk-pass', role: 'Delivery' },
-             { _id: 'a2', name: 'Kitchen', email: 'kitchen@klg.test', password: 'kitchen-pass', role: 'Self' }],
+             { _id: 'a2', name: 'Kitchen', email: 'kitchen@klg.test', password: 'kitchen-pass', role: 'Self' },
+             { _id: 'a3', name: 'Owner', email: 'owner@klg.test', password: 'owner-pass', role: 'Admin' }],
+    // adminSettingsController: general_settings delivery / pickup hours
+    staffPin: '4321',
+    categories: [{ slug: 'south-indian', name: 'South Indian' }, { slug: 'beverages', name: 'Beverages' }],
+    menuItems: [
+      { id: 'm1', name: 'Coffee', category: 'beverages', imageUrl: '', isAvailable: true },
+      { id: 'm2', name: 'Dosa', category: 'south-indian', imageUrl: '', isAvailable: true },
+      { id: 'm3', name: 'Lemon Tea', category: 'beverages', imageUrl: '', isAvailable: false },
+    ],
+    settings: { deliveryHours: { enabled: true, from: '07:00', to: '22:30' }, pickupHours: { enabled: true, from: '07:00', to: '22:30' } },
     riders: [
       { _id: 'r1', name: 'Ravi Driver', email: 'ravi@klg.test', phone: '9000000001', password: 'ravi-pass', status: 'AVAILABLE', vehicleNumber: 'KA01AB1234', createdAt: now() },
       { _id: 'r2', name: 'Sita Driver', email: 'sita@klg.test', phone: '9000000002', password: 'sita-pass', status: 'OFFLINE', vehicleNumber: 'KA02CD5678', createdAt: now() },
@@ -73,8 +83,9 @@ export function createBackend() {
     calls: [],
   };
 
+  let jti = 0; // unique per token, so two sign-ins in the same second differ
   const sign = (kind, id, role, ttlSec = 3600) => {
-    const t = `${b64({ alg: 'none' })}.${b64({ kind, id, role, exp: Math.floor(Date.now() / 1000) + ttlSec })}.sig`;
+    const t = `${b64({ alg: 'none' })}.${b64({ kind, id, role, jti: ++jti, exp: Math.floor(Date.now() / 1000) + ttlSec })}.sig`;
     state.tokens.set(t, { kind, id });
     return t;
   };
@@ -84,7 +95,7 @@ export function createBackend() {
   const fail = (status, message) => ({ status, body: { success: false, message } });
   const push = (o, status, by) => o.statusHistory.push({ status, updatedAt: now(), updatedBy: by });
 
-  function route(method, path, query, body, auth) {
+  function route(method, path, query, body, auth, headers = {}) {
     // ---- public
     if (method === 'POST' && path === '/admin/login') {
       const id = String(body.email || '').toLowerCase().trim();
@@ -113,6 +124,45 @@ export function createBackend() {
         if (query.orderType) list = list.filter((o) => o.orderType === query.orderType);
         list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return ok({ data: list, pagination: { total: list.length, page: 1, limit: Number(query.limit || 10), pages: 1 } });
+      }
+      // staffMenuController: menu items ON/OFF, needs the X-Staff-Pin header
+      if (path.startsWith('/admin/staff/menu-items') && !state.oldServer) {
+        const role = state.admins.find((a) => a._id === auth.id)?.role;
+        if (!['Super Admin', 'Admin', 'Delivery'].includes(role)) return fail(403, 'Forbidden: insufficient role');
+        if (headers['x-staff-pin'] !== state.staffPin) return { status: 403, body: { success: false, code: 'STAFF_PIN', message: 'Incorrect passcode' } };
+        if (method === 'GET' && path === '/admin/staff/menu-items') {
+          return ok({ success: true, data: { items: state.menuItems.map((i) => ({ ...i })), categories: state.categories } });
+        }
+        const item = state.menuItems.find((i) => path === `/admin/staff/menu-items/${i.id}`);
+        if (method === 'PATCH' && item) {
+          if (typeof body.isAvailable !== 'boolean') return fail(400, 'isAvailable must be true or false.');
+          item.isAvailable = body.isAvailable;
+          return ok({ success: true, data: { ...item } });
+        }
+      }
+      if (path === '/admin/order-modes' && !state.oldServer) {
+        const role = state.admins.find((a) => a._id === auth.id)?.role;
+        if (!['Super Admin', 'Admin', 'Delivery'].includes(role)) return fail(403, 'Forbidden: insufficient role');
+        const view = () => ({ deliveryEnabled: state.settings.deliveryHours.enabled, pickupEnabled: state.settings.pickupHours.enabled });
+        if (method === 'GET') return ok({ success: true, data: view() });
+        if (method === 'PATCH') {
+          const bad = (v) => v !== undefined && typeof v !== 'boolean';
+          if (bad(body.deliveryEnabled) || bad(body.pickupEnabled)) return fail(400, 'Send deliveryEnabled and/or pickupEnabled as true or false.');
+          if (body.deliveryEnabled !== undefined) state.settings.deliveryHours.enabled = body.deliveryEnabled;
+          if (body.pickupEnabled !== undefined) state.settings.pickupHours.enabled = body.pickupEnabled;
+          return ok({ success: true, data: view() });
+        }
+      }
+      if (path === '/admin/settings') {
+        const role = state.admins.find((a) => a._id === auth.id)?.role;
+        if (!['Super Admin', 'Admin'].includes(role)) return fail(403, 'Forbidden: insufficient role');
+        if (method === 'GET') return ok({ success: true, data: state.settings });
+        if (method === 'PUT') {
+          const flag = (v) => v === true || v === 'true';
+          if (body.deliveryEnabled !== undefined) state.settings.deliveryHours.enabled = flag(body.deliveryEnabled);
+          if (body.pickupEnabled !== undefined) state.settings.pickupHours.enabled = flag(body.pickupEnabled);
+          return ok({ success: true, data: state.settings });
+        }
       }
       if (method === 'GET' && path === '/admin/riders') return ok({ data: state.riders.map(publicRider) });
       if (method === 'POST' && path === '/admin/riders') {
@@ -268,7 +318,8 @@ export function createBackend() {
     const token = header.replace(/^Bearer /, '');
     const auth = token ? state.tokens.get(token) : null;
     state.calls.push({ method, path, body });
-    const { status, body: out } = route(method, path, Object.fromEntries(url.searchParams), body, auth);
+    const { status, body: out } = route(method, path, Object.fromEntries(url.searchParams), body, auth,
+      Object.fromEntries(Object.entries(init.headers || {}).map(([k, v]) => [k.toLowerCase(), v])));
     return { ok: status >= 200 && status < 300, status, json: async () => structuredClone(out) };
   }
 
