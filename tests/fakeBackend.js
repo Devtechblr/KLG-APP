@@ -64,7 +64,6 @@ export function createBackend() {
              { _id: 'a2', name: 'Kitchen', email: 'kitchen@klg.test', password: 'kitchen-pass', role: 'Self' },
              { _id: 'a3', name: 'Owner', email: 'owner@klg.test', password: 'owner-pass', role: 'Admin' }],
     // adminSettingsController: general_settings delivery / pickup hours
-    staffPin: '4321',
     categories: [{ slug: 'south-indian', name: 'South Indian' }, { slug: 'beverages', name: 'Beverages' }],
     menuItems: [
       { id: 'm1', name: 'Coffee', category: 'beverages', imageUrl: '', isAvailable: true },
@@ -125,11 +124,10 @@ export function createBackend() {
         list = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         return ok({ data: list, pagination: { total: list.length, page: 1, limit: Number(query.limit || 10), pages: 1 } });
       }
-      // staffMenuController: menu items ON/OFF, needs the X-Staff-Pin header
+      // staffMenuController: menu items ON/OFF (login + role, no PIN)
       if (path.startsWith('/admin/staff/menu-items') && !state.oldServer) {
         const role = state.admins.find((a) => a._id === auth.id)?.role;
         if (!['Super Admin', 'Admin', 'Delivery'].includes(role)) return fail(403, 'Forbidden: insufficient role');
-        if (headers['x-staff-pin'] !== state.staffPin) return { status: 403, body: { success: false, code: 'STAFF_PIN', message: 'Incorrect passcode' } };
         if (method === 'GET' && path === '/admin/staff/menu-items') {
           return ok({ success: true, data: { items: state.menuItems.map((i) => ({ ...i })), categories: state.categories } });
         }

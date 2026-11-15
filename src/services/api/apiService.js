@@ -148,13 +148,13 @@ export const apiService = {
         return null;
       }
     },
-    // Staff Controls: menu items ON/OFF for all customers (needs the staff PIN).
-    staffMenu: async (pin) => {
-      const { data = {} } = await api('/admin/staff/menu-items', { headers: { 'X-Staff-Pin': pin } });
+    // Menu items ON/OFF for all customers (Super Admin / Admin / Delivery login).
+    staffMenu: async () => {
+      const { data = {} } = await api('/admin/staff/menu-items');
       return { items: data.items || [], categories: data.categories || [] };
     },
-    setItemAvailable: async (pin, id, isAvailable) => {
-      const { data } = await api(`/admin/staff/menu-items/${id}`, { method: 'PATCH', headers: { 'X-Staff-Pin': pin }, body: { isAvailable } });
+    setItemAvailable: async (id, isAvailable) => {
+      const { data } = await api(`/admin/staff/menu-items/${id}`, { method: 'PATCH', body: { isAvailable } });
       return data;
     },
     markNotificationRead: (id) => api(`/rider/notifications/${id}/read`, { method: 'POST', body: {} }),

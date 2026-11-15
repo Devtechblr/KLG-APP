@@ -303,27 +303,21 @@ describe('ordering on / off (same switches as the admin website)', () => {
   });
 });
 
-describe('staff controls: lock icon -> PIN -> menu items on / off', () => {
-  const openStaff = async () => {
-    fireEvent.click(await screen.findByRole('button', { name: 'Staff controls' }));
-    return screen.findByLabelText('Staff PIN');
+describe('menu items on / off (top bar, no PIN)', () => {
+  const openItems = async () => {
+    fireEvent.click(await screen.findByRole('button', { name: 'Menu items on / off' }));
+    return screen.findByRole('checkbox', { name: 'Dosa' });
   };
 
-  it('wrong PIN is refused; the right PIN opens the items; unticking hides an item for customers', async () => {
+  it('opens straight to the items; switching one OFF hides it for customers, ON brings it back', async () => {
     const be = installFakeBackend();
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
-    let pin = await openStaff();
-    fireEvent.change(pin, { target: { value: '1111' } });
-    expect(await screen.findByText('Wrong PIN. Try again.')).toBeInTheDocument();
-    expect(localStorage.getItem('klg.session')).not.toBeNull(); // a wrong PIN never signs you out
-
-    pin = screen.getByLabelText('Staff PIN');
-    fireEvent.change(pin, { target: { value: '4321' } });
-    const dosa = await screen.findByRole('checkbox', { name: 'Dosa' });
+    const dosa = await openItems();
+    expect(screen.queryByLabelText('Staff PIN')).toBeNull();
     expect(dosa).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'Lemon Tea' })).not.toBeChecked();
-    expect(screen.getByText(/1 hidden/)).toBeInTheDocument();
+    expect(screen.getByText(/1 OFF/)).toBeInTheDocument();
 
     fireEvent.click(dosa);
     await waitFor(() => expect(be.state.menuItems.find((i) => i.name === 'Dosa').isAvailable).toBe(false));
@@ -331,22 +325,17 @@ describe('staff controls: lock icon -> PIN -> menu items on / off', () => {
     await waitFor(() => expect(be.state.menuItems.find((i) => i.name === 'Lemon Tea').isAvailable).toBe(true));
   });
 
-  it('search and category filter the list; closing locks it again', async () => {
+  it('search and category filter the list', async () => {
     installFakeBackend();
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
-    fireEvent.change(await openStaff(), { target: { value: '4321' } });
-    await screen.findByRole('checkbox', { name: 'Dosa' });
-
+    await openItems();
     fireEvent.change(screen.getByLabelText('Category'), { target: { value: 'beverages' } });
     expect(screen.queryByRole('checkbox', { name: 'Dosa' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Coffee' })).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Search items…'), { target: { value: 'lemon' } });
     expect(screen.queryByRole('checkbox', { name: 'Coffee' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Lemon Tea' })).toBeInTheDocument();
-
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(await openStaff()).toBeInTheDocument(); // asks for the PIN again
   });
 
   it('before the server update it says so', async () => {
@@ -354,7 +343,7 @@ describe('staff controls: lock icon -> PIN -> menu items on / off', () => {
     be.state.oldServer = true;
     renderApp();
     await signIn('desk@klg.test', 'desk-pass');
-    fireEvent.change(await openStaff(), { target: { value: '4321' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Menu items on / off' }));
     expect(await screen.findByText('Needs the latest KLG server update.')).toBeInTheDocument();
   });
 });
