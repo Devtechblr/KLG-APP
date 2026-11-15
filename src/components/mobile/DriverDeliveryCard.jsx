@@ -5,26 +5,25 @@ import SwipeButton from './SwipeButton';
 import { fmtDateTime, fmtTime, inr, navHref, telHref } from '../../utils/format';
 import { useData, useUi } from '../../context/DataContext';
 
-// The steps a driver moves an order through once the restaurant hands it over.
+// The steps a driver moves an order through once assigned.
 export const DRIVER_STEP = {
-  ASSIGNED: { to: 'PICKED_UP', label: 'Swipe when picked up' },
+  ASSIGNED: { to: 'OUT_FOR_DELIVERY', label: 'Swipe to start delivery' },
   PICKED_UP: { to: 'OUT_FOR_DELIVERY', label: 'Swipe to start delivery' },
   OUT_FOR_DELIVERY: { to: 'DELIVERED', label: 'Swipe to mark delivered' },
 };
 export const KITCHEN = ['PENDING', 'ACCEPTED', 'PREPARING'];
 const PRE_DISPATCH = ['PENDING', 'ACCEPTED', 'PREPARING', 'PACKING', 'READY'];
 
-// Real API: accept the offer/assignment -> start delivery (picked up) -> complete.
+// Real API: accept the offer/assignment -> start delivery -> complete.
 // RIDER_ACCEPT is an app-only step that calls POST /rider/orders/:id/accept.
 export function driverStep(order) {
   if (!('riderAccepted' in order)) return DRIVER_STEP[order.status] || null; // demo data
   if (order.status === 'OUT_FOR_DELIVERY') return DRIVER_STEP.OUT_FOR_DELIVERY;
-  if (!PRE_DISPATCH.includes(order.status)) return null;
+  if (!PRE_DISPATCH.includes(order.status) && order.status !== 'ASSIGNED') return null;
   if (order.status === 'PENDING') return null; // restaurant hasn't accepted yet
   if (!order.riderAccepted) return { to: 'RIDER_ACCEPT', label: order.offer ? 'Swipe to accept offer' : 'Swipe to accept delivery' };
-  // Pick-up unlocks only once the restaurant marks the parcel ready.
-  if (['PACKING', 'READY'].includes(order.status)) return { to: 'OUT_FOR_DELIVERY', label: 'Swipe when picked up' };
-  return null;
+  // Once driver has accepted, they can directly start delivery and deliver to customer address
+  return { to: 'OUT_FOR_DELIVERY', label: 'Swipe to start delivery' };
 }
 export const shortId = (id) => '#' + id.split('-').pop();
 export const needsCash = (o) => o.paymentMethod === 'COD' && o.paymentStatus !== 'PAID';
@@ -58,12 +57,10 @@ export function useDriverDecline() {
   };
 }
 
-export const driverWaitText = (order) => (KITCHEN.includes(order.status)
-  ? 'Food is being prepared · pick-up unlocks when the parcel is ready'
-  : 'Ready, waiting for hand-over');
+export const driverWaitText = (order) => 'Order assigned · swipe to start delivery';
 
 // 3 steps the driver sees on every active job.
-const JOB_STEPS = ['Accept', 'Pick up', 'Deliver'];
+const JOB_STEPS = ['Accept', 'Start', 'Deliver'];
 export function jobStep(order) {
   if (order.status === 'DELIVERED') return 3;
   if (['OUT_FOR_DELIVERY', 'PICKED_UP'].includes(order.status)) return 2;
@@ -73,8 +70,8 @@ export function jobStep(order) {
 export function nextHint(order) {
   const n = jobStep(order);
   if (n === 0) return 'Accept this delivery';
-  if (n === 1) return ['PACKING', 'READY', 'ASSIGNED'].includes(order.status) ? 'Parcel is ready · go to the counter and pick it up' : 'Food is being prepared · wait for the parcel';
-  return needsCash(order) ? `Deliver and collect ${inr(order.total)} cash` : 'Deliver to the customer';
+  if (n === 1) return 'Swipe to start delivery to customer address';
+  return needsCash(order) ? `Deliver and collect ${inr(order.total)} cash` : 'Deliver to customer address';
 }
 
 export function JobSteps({ order }) {

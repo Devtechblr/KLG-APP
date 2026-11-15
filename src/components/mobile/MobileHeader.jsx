@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronRight } from 'lucide-react';
 import BrandMark from './BrandMark';
 import BottomSheet from './BottomSheet';
 import StatusBadge from './StatusBadge';
 import EmptyState from './EmptyState';
-import OrderModeSwitches from './OrderModeSwitches';
 import StaffControls from './StaffControls';
-import useOrderModes from '../../hooks/useOrderModes';
 import { useData } from '../../context/DataContext';
 import { fmtTime, inr } from '../../utils/format';
 
@@ -15,13 +13,6 @@ export default function MobileHeader() {
   const { db, customerById } = useData();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
-  const showModes = !!useOrderModes().modes;
-
-  // The top bar is taller with the Delivery / Pickup row: move the page down.
-  useEffect(() => {
-    document.documentElement.classList.toggle('with-modes', showModes);
-    return () => document.documentElement.classList.remove('with-modes');
-  }, [showModes]);
 
   const alerts = useMemo(
     () => (db ? db.orders.filter((o) => o.status === 'PENDING' || o.status === 'READY') : []),
@@ -30,7 +21,7 @@ export default function MobileHeader() {
 
   return (
     <>
-      <header className={`m-header ${showModes ? 'has-modes' : ''}`}>
+      <header className="m-header">
         <div className="m-header-row">
           <button className="m-brand" onClick={() => navigate('/admin/delivery-orders')} aria-label="Go to deliveries">
             <BrandMark size={38} />
@@ -47,7 +38,6 @@ export default function MobileHeader() {
             </button>
           </span>
         </div>
-        <OrderModeSwitches compact />
       </header>
 
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Notifications">

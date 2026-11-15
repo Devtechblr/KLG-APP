@@ -102,6 +102,8 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 .m-header:not(.has-modes) .m-header-row { flex: 1; }
 :root.with-modes { --top-h: 104px; }
 .m-modes { display: flex; gap: 8px; }
+.m-modes.inline { display: inline-flex; gap: 8px; align-items: center; }
+.m-modes.inline .mode-pill { flex: none; min-height: 32px; padding: 0 10px 0 6px; }
 .m-header-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
 /* Menu items ON/OFF sheet */
@@ -238,7 +240,8 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .page-head-text { min-width: 0; }
-.page-head h1 { font-size: 22px; font-weight: 700; }
+.page-head-title-wrap { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.page-head h1 { font-size: 22px; font-weight: 700; margin: 0; }
 .page-head p { color: var(--text-2); font-size: 12.5px; margin-top: 2px; }
 .page-actions { display: flex; gap: 8px; flex: none; }
 

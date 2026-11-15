@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { RefreshCw, SlidersHorizontal, CalendarClock, ChevronDown, Truck } from 'lucide-react';
 import PageHeader from '../components/mobile/PageHeader';
+import OrderModeSwitches from '../components/mobile/OrderModeSwitches';
 import SearchBar from '../components/mobile/SearchBar';
 import FilterSheet from '../components/mobile/FilterSheet';
 import DeliveryCard from '../components/mobile/DeliveryCard';
@@ -74,6 +75,7 @@ export default function Deliveries() {
     <div className="page">
       <PageHeader
         title="Delivery Orders"
+        extra={<OrderModeSwitches compact only="delivery" />}
         actions={
           <button className="btn btn-primary btn-sm" onClick={refresh} disabled={spinning} aria-label="Refresh deliveries">
             <RefreshCw size={16} className={spinning ? 'spin' : ''} /> <span className="hide-xs">Refresh</span>

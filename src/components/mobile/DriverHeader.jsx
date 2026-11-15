@@ -13,7 +13,7 @@ import { shortId } from './DriverDeliveryCard';
 export function driverTodo(o, meId) {
   if (o.driverId !== meId) return null;
   if (awaitingDriver(o, meId)) return { tone: 'new', title: o.offer ? 'New delivery request' : 'Delivery assigned to you', text: 'Tap to accept' };
-  if (o.riderAccepted && ['PACKING', 'READY'].includes(o.status)) return { tone: 'ready', title: 'Parcel ready · pick up now', text: 'Go to the restaurant counter' };
+  if (o.riderAccepted && o.status !== 'OUT_FOR_DELIVERY' && o.status !== 'DELIVERED') return { tone: 'ready', title: 'Delivery assigned', text: 'Swipe to start delivery' };
   if (o.status === 'OUT_FOR_DELIVERY') return { tone: 'road', title: 'Deliver to customer', text: 'Swipe when delivered' };
   return null;
 }

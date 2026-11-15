@@ -97,7 +97,7 @@ function LiveSettings() {
         <p className="muted small">Change your password or add admins on the KLG admin website.</p>
       </Section>
 
-      <Section icon={Store} title="Ordering" desc="Turn Delivery / Pickup orders on or off" defaultOpen>
+      <Section icon={Store} title="Ordering" desc="Turn Delivery orders on or off" defaultOpen>
         <OrderModeSwitches />
       </Section>
 

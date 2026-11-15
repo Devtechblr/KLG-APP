@@ -11,12 +11,11 @@ import { fmtTime, inr, inr2, navHref, telHref } from '../../utils/format';
 // Driver-facing timeline, simpler than the admin one.
 const STEPS = [
   { key: 'placed', label: 'Order placed', statuses: ['PENDING'] },
-  { key: 'prepared', label: 'Food prepared', statuses: ['READY', 'PACKING', 'ASSIGNED'] },
-  { key: 'picked', label: 'Picked up', statuses: ['PICKED_UP'] },
-  { key: 'transit', label: 'Out for delivery', statuses: ['OUT_FOR_DELIVERY'], sub: 'In transit' },
+  { key: 'assigned', label: 'Order assigned', statuses: ['ACCEPTED', 'PREPARING', 'READY', 'PACKING', 'ASSIGNED'] },
+  { key: 'transit', label: 'Out for delivery', statuses: ['OUT_FOR_DELIVERY', 'PICKED_UP'], sub: 'In transit' },
   { key: 'done', label: 'Delivered', statuses: ['DELIVERED'] },
 ];
-const RANK = { PENDING: 0, ACCEPTED: 0, PREPARING: 0, PACKING: 1, READY: 1, ASSIGNED: 1, PICKED_UP: 2, OUT_FOR_DELIVERY: 3, DELIVERED: 4 };
+const RANK = { PENDING: 0, ACCEPTED: 1, PREPARING: 1, PACKING: 1, READY: 1, ASSIGNED: 1, PICKED_UP: 2, OUT_FOR_DELIVERY: 2, DELIVERED: 3 };
 
 export default function DriverOrder() {
   const { id } = useParams();
